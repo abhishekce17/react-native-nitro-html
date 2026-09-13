@@ -124,4 +124,3 @@ export interface FastHtmlParser extends HybridObject<{
     fontScale: number
   ): number;
 }
-

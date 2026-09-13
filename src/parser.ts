@@ -33,6 +33,3 @@ export function calculateHTMLHeight(
     fontScale
   );
 }
-
-
-

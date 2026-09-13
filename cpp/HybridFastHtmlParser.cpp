@@ -152,12 +152,7 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
     if (!node) return nullptr;
 
     if (node->type == LXB_DOM_NODE_TYPE_TEXT) {
-        size_t len = 0;
-        lxb_char_t* text = lxb_dom_node_text_content(node, &len);
-        std::string str = (text && len > 0) ? std::string(reinterpret_cast<const char*>(text), len) : "";
-        if (text && node->owner_document) {
-            lxb_dom_document_destroy_text(node->owner_document, text);
-        }
+        std::string str = getNodeText(node);
         if (str.empty()) return nullptr;
         str = normalizeHtmlWhitespace(str);
         str = applyTextTransform(str, parentCtx.textTransform);
@@ -460,12 +455,7 @@ static void walkDomNode(
     if (!node) return;
 
     if (node->type == LXB_DOM_NODE_TYPE_TEXT) {
-        size_t len = 0;
-        lxb_char_t* text = lxb_dom_node_text_content(node, &len);
-        std::string str = (text && len > 0) ? std::string(reinterpret_cast<const char*>(text), len) : "";
-        if (text && node->owner_document) {
-            lxb_dom_document_destroy_text(node->owner_document, text);
-        }
+        std::string str = getNodeText(node);
         size_t first = str.find_first_not_of(" \t\n\r");
         if (first != std::string::npos) {
             auto p = std::make_shared<HybridContentBlock>("Paragraph");
@@ -524,7 +514,7 @@ static void walkDomNode(
         } else if (block->level_ == 5) {
             block->fontSize_ = baseCtx.fontSize * 1.0; block->marginTop_ = 8.0; block->marginBottom_ = 4.0;
         } else {
-            block->fontSize_ = baseCtx.fontSize * 0.875; block->color_ = baseCtx.color; block->marginTop_ = 8.0; block->marginBottom_ = 4.0;
+            block->fontSize_ = baseCtx.fontSize * 0.875; block->marginTop_ = 8.0; block->marginBottom_ = 4.0;
         }
 
         StyleContext hCtx = baseCtx;
@@ -614,7 +604,9 @@ static void walkDomNode(
             p->fontFamily_ = block->fontFamily_;
             collectInlineChildren(node, p->children_, qCtx, tagsStyles);
             block->quoteChildren_.push_back(p);
-            collectInlineChildren(node, block->children_, qCtx, tagsStyles);
+            for (const auto& inNode : p->children_) {
+                block->children_.push_back(inNode);
+            }
         }
         blocks.push_back(block);
         return;
@@ -1031,80 +1023,6 @@ static void walkDomNode(
     }
 }
 
-// ── Default / Fallback HTML Styling & User Overrides ─────────────────────────
-static std::string styleToCss(const NativeTextStyle& style) {
-    std::string css = "";
-    if (style.fontFamily.has_value() && !style.fontFamily.value().empty()) {
-        css += "font-family: " + style.fontFamily.value() + "; ";
-    }
-    if (style.fontSize.has_value() && style.fontSize.value() > 0) {
-        css += "font-size: " + std::to_string(static_cast<int>(style.fontSize.value())) + "px; ";
-    }
-    if (style.lineHeight.has_value() && style.lineHeight.value() > 0) {
-        css += "line-height: " + std::to_string(static_cast<int>(style.lineHeight.value())) + "px; ";
-    }
-    if (style.color.has_value() && !style.color.value().empty()) {
-        css += "color: " + style.color.value() + "; ";
-    }
-    if (style.fontWeight.has_value() && !style.fontWeight.value().empty()) {
-        css += "font-weight: " + style.fontWeight.value() + "; ";
-    }
-    if (style.fontStyle.has_value() && !style.fontStyle.value().empty()) {
-        css += "font-style: " + style.fontStyle.value() + "; ";
-    }
-    if (style.letterSpacing.has_value()) {
-        css += "letter-spacing: " + std::to_string(style.letterSpacing.value()) + "px; ";
-    }
-    if (style.textAlign.has_value() && !style.textAlign.value().empty()) {
-        css += "text-align: " + style.textAlign.value() + "; ";
-    }
-    if (style.backgroundColor.has_value() && !style.backgroundColor.value().empty()) {
-        css += "background-color: " + style.backgroundColor.value() + "; ";
-    }
-    return css;
-}
-
-std::string HybridFastHtmlParser::wrapHtmlWithDefaultStyles(
-    const std::string& html,
-    const std::optional<NativeTextStyle>& baseStyle,
-    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
-) {
-    if (html.empty()) return "";
-
-    std::string rootFont = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    std::string rootColor = "#000000";
-
-    std::string customBodyCss = "";
-    if (baseStyle.has_value()) {
-        customBodyCss = styleToCss(baseStyle.value());
-    }
-
-    std::string customTagsCss = "";
-    if (tagsStyles.has_value()) {
-        for (const auto& [tag, style] : tagsStyles.value()) {
-            std::string rule = styleToCss(style);
-            if (!rule.empty()) {
-                customTagsCss += "\n" + tag + " { " + rule + "}";
-            }
-        }
-    }
-
-    std::string styleBlock =
-        "<style>\n"
-        "html, body {\n"
-        "  margin: 0;\n"
-        "  padding: 0;\n"
-        "  font-family: " + rootFont + ";\n"
-        "  color: " + rootColor + ";\n"
-        "  -webkit-text-size-adjust: 100%;\n"
-        "  " + customBodyCss + "\n"
-        "}\n"
-        + customTagsCss +
-        "\n</style>";
-
-    return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" + styleBlock + "</head><body>" + html + "</body></html>";
-}
-
 // ── Thread-Safe In-Memory LRU AST Cache (Eliminates Duplicate HTML Parsing) ──
 struct AstCacheKey {
     std::string html;
@@ -1194,7 +1112,7 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
         html.length()
     );
 
-    auto blocks = std::make_shared<std::vector<std::shared_ptr<HybridContentBlock>>>();
+    std::vector<std::shared_ptr<HybridContentBlock>> blocks;
 
     if (document) {
         lxb_dom_node_t* rootNode = nullptr;
@@ -1216,7 +1134,7 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
                 if (b.fontStyle.has_value() && !b.fontStyle.value().empty()) baseCtx.fontStyle = b.fontStyle.value();
                 if (b.lineHeight.has_value() && b.lineHeight.value() > 0) baseCtx.lineHeight = b.lineHeight.value();
             }
-            walkDomChildren(rootNode, *blocks, baseCtx, tagsStyles);
+            walkDomChildren(rootNode, blocks, baseCtx, tagsStyles);
         }
 
         lxb_html_document_destroy(document);
@@ -1224,7 +1142,7 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
 
     lxb_html_parser_destroy(parser);
 
-    auto article = std::make_shared<HybridParsedArticle>(std::move(*blocks));
+    auto article = std::make_shared<HybridParsedArticle>(std::move(blocks));
 
     {
         std::lock_guard<std::mutex> lock(sAstCacheMutex);
@@ -1546,8 +1464,8 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
         else if (level_ == 6) hScale = 0.85f;
 
         float hFontSize = effectiveFontSize * hScale;
-        float hLineHeight = hFontSize;
-        float hCharWidth = proportionalCharWidth;
+        float hLineHeight = hFontSize * 1.25f;
+        float hCharWidth = hFontSize * 0.5f;
         float hMargin = hFontSize;
 
         float textLen = 0.0f;
@@ -1679,11 +1597,38 @@ HybridFastHtmlParser::parseAsync(const std::string& html) {
 // ── normalizeHtml ─────────────────────────────────────────────────────────────
 std::string HybridFastHtmlParser::normalizeHtml(const std::string& html) {
     if (html.empty()) return "";
-    return wrapHtmlWithDefaultStyles(html);
+
+    lxb_html_parser_t* parser = lxb_html_parser_create();
+    if (!parser) return html;
+
+    if (lxb_html_parser_init(parser) != LXB_STATUS_OK) {
+        lxb_html_parser_destroy(parser);
+        return html;
+    }
+
+    lxb_html_document_t* document = lxb_html_parse(
+        parser,
+        reinterpret_cast<const lxb_char_t*>(html.c_str()),
+        html.length()
+    );
+
+    std::string result;
+    if (document) {
+        lxb_dom_node_t* targetNode = nullptr;
+        if (document->body) {
+            targetNode = lxb_dom_interface_node(document->body);
+        } else if (document->dom_document.element) {
+            targetNode = lxb_dom_interface_node(document->dom_document.element);
+        }
+
+        if (targetNode) {
+            result = serializeNodeHtml(targetNode);
+        }
+        lxb_html_document_destroy(document);
+    }
+
+    lxb_html_parser_destroy(parser);
+    return !result.empty() ? result : html;
 }
 
 } // namespace margelo::nitro::fasthtmlparser
-
-
-
-

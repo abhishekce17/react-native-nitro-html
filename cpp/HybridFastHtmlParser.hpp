@@ -318,16 +318,6 @@ public:
 
     // Normalizes HTML via compiled C++ Lexbor
     std::string normalizeHtml(const std::string& html) override;
-
-    // Wraps HTML with default/fallback device styling and user overrides
-    static std::string wrapHtmlWithDefaultStyles(
-        const std::string& html,
-        const std::optional<NativeTextStyle>& baseStyle = std::nullopt,
-        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles = std::nullopt
-    );
 };
 
 } // namespace margelo::nitro::fasthtmlparser
-
-
-
