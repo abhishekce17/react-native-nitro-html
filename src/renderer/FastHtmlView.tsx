@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, useWindowDimensions, PixelRatio } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  useWindowDimensions,
+  PixelRatio,
+} from 'react-native';
 import { getHostComponent, callback } from 'react-native-nitro-modules';
 import { parseHTML, calculateHTMLHeight } from '../parser';
 import { getBlocks } from '../wrappers';
@@ -45,7 +50,7 @@ function hasCustomRenderers(renderers?: Record<string, unknown>): boolean {
   return false;
 }
 
-const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
+const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentViewImpl({
   html,
   baseStyle,
   tagsStyles,
@@ -144,9 +149,12 @@ export function FastHtmlView({
     return (baseStyle as NativeTextStyle) ?? EMPTY_STYLE;
   }, [baseStyle, fontFeatureSettings]);
 
-  const nativeTagsStyles: Record<string, NativeTextStyle> = React.useMemo(() => {
-    return (tagsStyles as Record<string, NativeTextStyle>) ?? EMPTY_TAGS_STYLES;
-  }, [tagsStyles]);
+  const nativeTagsStyles: Record<string, NativeTextStyle> =
+    React.useMemo(() => {
+      return (
+        (tagsStyles as Record<string, NativeTextStyle>) ?? EMPTY_TAGS_STYLES
+      );
+    }, [tagsStyles]);
 
   const wrappedOnLinkPress = React.useMemo(
     () => (onLinkPress ? callback(onLinkPress) : undefined),

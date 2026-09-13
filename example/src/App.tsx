@@ -701,8 +701,14 @@ function TypographyTab({ theme }: { theme: AppTheme }) {
 
   const fontFamilies = [
     { label: 'System', value: 'System' },
-    { label: 'JetBrains Mono (Custom Code Font)', value: 'JetBrainsMono-Bold, JetBrains Mono, monospace' },
-    { label: 'Pacifico (Custom Font)', value: 'Pacifico-Regular, Pacifico, cursive' },
+    {
+      label: 'JetBrains Mono (Custom Code Font)',
+      value: 'JetBrainsMono-Bold, JetBrains Mono, monospace',
+    },
+    {
+      label: 'Pacifico (Custom Font)',
+      value: 'Pacifico-Regular, Pacifico, cursive',
+    },
     { label: 'Cinzel (Custom Font)', value: 'Cinzel-Bold, Cinzel, serif' },
     { label: 'Georgia', value: 'Georgia' },
     { label: 'Times New Roman', value: 'Times New Roman' },
@@ -868,21 +874,29 @@ function TypographyTab({ theme }: { theme: AppTheme }) {
           Interactive Typography &amp; Font Studio
         </Text>
         <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
-          Test font family resolution, weights (100–900), fallback stacks, and OpenType features live.
+          Test font family resolution, weights (100–900), fallback stacks, and
+          OpenType features live.
         </Text>
 
         {/* Font Family Selector */}
         <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
           baseStyle.fontFamily: {selectedFamily}
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 8 }}
+        >
           <View style={styles.controlRow}>
             {fontFamilies.map((f) => (
               <TouchableOpacity
                 key={f.label}
                 style={[
                   styles.smallBtn,
-                  { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                  {
+                    backgroundColor: theme.smallBtnBg,
+                    borderColor: theme.smallBtnBorder,
+                  },
                   selectedFamily === f.value && styles.activeSmallBtn,
                 ]}
                 onPress={() => setSelectedFamily(f.value)}
@@ -911,7 +925,10 @@ function TypographyTab({ theme }: { theme: AppTheme }) {
               key={w}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 selectedWeight === w && styles.activeSmallBtn,
               ]}
               onPress={() => setSelectedWeight(w)}
@@ -939,7 +956,10 @@ function TypographyTab({ theme }: { theme: AppTheme }) {
               key={f}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 fontFeature === f && styles.activeSmallBtn,
               ]}
               onPress={() => setFontFeature(f)}
@@ -965,7 +985,10 @@ function TypographyTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               customTagFonts && styles.activeSmallBtn,
             ]}
             onPress={() => setCustomTagFonts(true)}
@@ -983,7 +1006,10 @@ function TypographyTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               !customTagFonts && styles.activeSmallBtn,
             ]}
             onPress={() => setCustomTagFonts(false)}
@@ -1189,7 +1215,9 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
   const [useBaseStyle, setUseBaseStyle] = useState(true);
   const [useTagsStyles, setUseTagsStyles] = useState(true);
   const [baseFontSize, setBaseFontSize] = useState<number>(16);
-  const [baseColorTheme, setBaseColorTheme] = useState<'slate' | 'indigo' | 'emerald' | 'crimson'>('slate');
+  const [baseColorTheme, setBaseColorTheme] = useState<
+    'slate' | 'indigo' | 'emerald' | 'crimson'
+  >('slate');
   const [baseMarginVertical, setBaseMarginVertical] = useState<number>(0);
   const [basePaddingHorizontal, setBasePaddingHorizontal] = useState<number>(0);
 
@@ -1213,26 +1241,82 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
       fontFamily: 'System',
       letterSpacing: 0.3,
       marginVertical: baseMarginVertical > 0 ? baseMarginVertical : undefined,
-      paddingHorizontal: basePaddingHorizontal > 0 ? basePaddingHorizontal : undefined,
+      paddingHorizontal:
+        basePaddingHorizontal > 0 ? basePaddingHorizontal : undefined,
     };
-  }, [useBaseStyle, baseFontSize, baseColorTheme, colorMap, theme, baseMarginVertical, basePaddingHorizontal]);
+  }, [
+    useBaseStyle,
+    baseFontSize,
+    baseColorTheme,
+    colorMap,
+    theme,
+    baseMarginVertical,
+    basePaddingHorizontal,
+  ]);
 
   const tagsStyles = useMemo(() => {
     if (!useTagsStyles) return undefined;
     return {
-      h1: { fontSize: baseFontSize * 1.75, color: theme.isDark ? '#c084fc' : '#6d28d9', fontWeight: 'bold' as const, marginBottom: 16, marginTop: 8 },
-      h2: { fontSize: baseFontSize * 1.4, color: theme.isDark ? '#38bdf8' : '#0284c7', fontWeight: 'bold' as const, marginBottom: 12, marginTop: 16 },
-      h3: { fontSize: baseFontSize * 1.2, color: theme.isDark ? '#34d399' : '#059669', fontWeight: 'bold' as const, marginBottom: 8, marginTop: 12 },
-      h4: { fontSize: baseFontSize * 1.1, color: theme.isDark ? '#fbbf24' : '#d97706', fontWeight: 'bold' as const, marginBottom: 6, marginTop: 10 },
-      h5: { fontSize: baseFontSize * 1.0, color: theme.isDark ? '#f87171' : '#dc2626', fontWeight: 'bold' as const, marginBottom: 4, marginTop: 8 },
-      h6: { fontSize: baseFontSize * 0.9, color: theme.textMuted, fontWeight: 'bold' as const, marginBottom: 4, marginTop: 6 },
-      p: { lineHeight: baseFontSize * 1.5, color: theme.textSecondary, marginBottom: 12 },
-      a: { color: theme.isDark ? '#60a5fa' : '#2563eb', textDecorationLine: 'underline' as const },
+      h1: {
+        fontSize: baseFontSize * 1.75,
+        color: theme.isDark ? '#c084fc' : '#6d28d9',
+        fontWeight: 'bold' as const,
+        marginBottom: 16,
+        marginTop: 8,
+      },
+      h2: {
+        fontSize: baseFontSize * 1.4,
+        color: theme.isDark ? '#38bdf8' : '#0284c7',
+        fontWeight: 'bold' as const,
+        marginBottom: 12,
+        marginTop: 16,
+      },
+      h3: {
+        fontSize: baseFontSize * 1.2,
+        color: theme.isDark ? '#34d399' : '#059669',
+        fontWeight: 'bold' as const,
+        marginBottom: 8,
+        marginTop: 12,
+      },
+      h4: {
+        fontSize: baseFontSize * 1.1,
+        color: theme.isDark ? '#fbbf24' : '#d97706',
+        fontWeight: 'bold' as const,
+        marginBottom: 6,
+        marginTop: 10,
+      },
+      h5: {
+        fontSize: baseFontSize * 1.0,
+        color: theme.isDark ? '#f87171' : '#dc2626',
+        fontWeight: 'bold' as const,
+        marginBottom: 4,
+        marginTop: 8,
+      },
+      h6: {
+        fontSize: baseFontSize * 0.9,
+        color: theme.textMuted,
+        fontWeight: 'bold' as const,
+        marginBottom: 4,
+        marginTop: 6,
+      },
+      p: {
+        lineHeight: baseFontSize * 1.5,
+        color: theme.textSecondary,
+        marginBottom: 12,
+      },
+      a: {
+        color: theme.isDark ? '#60a5fa' : '#2563eb',
+        textDecorationLine: 'underline' as const,
+      },
       b: { fontWeight: 'bold' as const, color: theme.textPrimary },
       strong: { fontWeight: 'bold' as const, color: theme.textPrimary },
       i: { fontStyle: 'italic' as const, color: theme.textSecondary },
       em: { fontStyle: 'italic' as const, color: theme.textSecondary },
-      code: { backgroundColor: theme.codeBg, color: theme.codeColor, fontFamily: 'monospace' },
+      code: {
+        backgroundColor: theme.codeBg,
+        color: theme.codeColor,
+        fontFamily: 'monospace',
+      },
       pre: {
         backgroundColor: theme.preBg,
         color: theme.preColor,
@@ -1266,7 +1350,12 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
         marginBottom: 16,
       },
       dl: { marginTop: 8, marginBottom: 16 },
-      dt: { fontWeight: 'bold' as const, color: theme.isDark ? '#818cf8' : '#4338ca', marginTop: 8, marginBottom: 2 },
+      dt: {
+        fontWeight: 'bold' as const,
+        color: theme.isDark ? '#818cf8' : '#4338ca',
+        marginTop: 8,
+        marginBottom: 2,
+      },
       dd: { color: theme.textSecondary, marginLeft: 20, marginBottom: 6 },
       hr: { color: theme.hrColor, marginTop: 20, marginBottom: 20 },
       img: { backgroundColor: theme.cardBg, marginTop: 12, marginBottom: 12 },
@@ -1287,7 +1376,8 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
           baseStyle &amp; tagsStyles Controller
         </Text>
         <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
-          Test live prop propagation across all supported block tags and inline styles.
+          Test live prop propagation across all supported block tags and inline
+          styles.
         </Text>
 
         {/* baseStyle Toggle */}
@@ -1298,7 +1388,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               useBaseStyle && styles.activeSmallBtn,
             ]}
             onPress={() => setUseBaseStyle(true)}
@@ -1316,7 +1409,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               !useBaseStyle && styles.activeSmallBtn,
             ]}
             onPress={() => setUseBaseStyle(false)}
@@ -1341,7 +1437,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               useTagsStyles && styles.activeSmallBtn,
             ]}
             onPress={() => setUseTagsStyles(true)}
@@ -1359,7 +1458,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               !useTagsStyles && styles.activeSmallBtn,
             ]}
             onPress={() => setUseTagsStyles(false)}
@@ -1386,7 +1488,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
               key={sz}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 baseFontSize === sz && styles.activeSmallBtn,
               ]}
               onPress={() => setBaseFontSize(sz)}
@@ -1409,27 +1514,32 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
           baseStyle.color Theme:
         </Text>
         <View style={styles.controlRow}>
-          {(['slate', 'indigo', 'emerald', 'crimson'] as const).map((colorName) => (
-            <TouchableOpacity
-              key={colorName}
-              style={[
-                styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
-                baseColorTheme === colorName && styles.activeSmallBtn,
-              ]}
-              onPress={() => setBaseColorTheme(colorName)}
-            >
-              <Text
+          {(['slate', 'indigo', 'emerald', 'crimson'] as const).map(
+            (colorName) => (
+              <TouchableOpacity
+                key={colorName}
                 style={[
-                  styles.smallBtnText,
-                  { color: theme.smallBtnText },
-                  baseColorTheme === colorName && styles.activeSmallBtnText,
+                  styles.smallBtn,
+                  {
+                    backgroundColor: theme.smallBtnBg,
+                    borderColor: theme.smallBtnBorder,
+                  },
+                  baseColorTheme === colorName && styles.activeSmallBtn,
                 ]}
+                onPress={() => setBaseColorTheme(colorName)}
               >
-                {colorName.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.smallBtnText,
+                    { color: theme.smallBtnText },
+                    baseColorTheme === colorName && styles.activeSmallBtnText,
+                  ]}
+                >
+                  {colorName.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
         </View>
 
         {/* Base Margin Vertical */}
@@ -1442,7 +1552,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
               key={m}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 baseMarginVertical === m && styles.activeSmallBtn,
               ]}
               onPress={() => setBaseMarginVertical(m)}
@@ -1470,7 +1583,10 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
               key={p}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 basePaddingHorizontal === p && styles.activeSmallBtn,
               ]}
               onPress={() => setBasePaddingHorizontal(p)}
@@ -1506,7 +1622,6 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
     </ScrollView>
   );
 }
-
 
 // ─── Tab: Custom Renderers ───────────────────────────────────────────────────
 
@@ -1617,10 +1732,7 @@ function CustomRenderersTab({ theme }: { theme: AppTheme }) {
                 ]}
               >
                 <Text
-                  style={[
-                    styles.customPollTitle,
-                    { color: theme.textPrimary },
-                  ]}
+                  style={[styles.customPollTitle, { color: theme.textPrimary }]}
                 >
                   📊 {block.title || 'Community Poll'}
                 </Text>
@@ -1736,7 +1848,10 @@ function NewFeaturesTab({
               key={f}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 fontFeature === f && styles.activeSmallBtn,
               ]}
               onPress={() => setFontFeature(f)}
@@ -1787,7 +1902,10 @@ function NewFeaturesTab({
             h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
             h3: { color: theme.isDark ? '#34d399' : '#059669' },
             p: { color: theme.textSecondary },
-            th: { backgroundColor: theme.tableHeaderBg, color: theme.textPrimary },
+            th: {
+              backgroundColor: theme.tableHeaderBg,
+              color: theme.textPrimary,
+            },
             td: { borderColor: theme.tableBorder, color: theme.textSecondary },
           }}
           fontFeatureSettings={
@@ -1865,7 +1983,11 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
       h4: { color: theme.isDark ? '#fbbf24' : '#d97706' },
       p: { color: theme.textSecondary },
       code: { backgroundColor: theme.codeBg, color: theme.codeColor },
-      pre: { backgroundColor: theme.preBg, color: theme.preColor, paddingLeft: 12 },
+      pre: {
+        backgroundColor: theme.preBg,
+        color: theme.preColor,
+        paddingLeft: 12,
+      },
       blockquote: {
         borderLeftColor: theme.quoteBorder,
         backgroundColor: theme.quoteBg,
@@ -1902,7 +2024,9 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
           Infinite Scale &amp; 10,000 Words Stress Test
         </Text>
         <Text style={styles.virtualHeaderSub}>
-          {currentPayload.sectionCount} Sections · {currentPayload.wordCount.toLocaleString()} Words · 0 React VDOM Nodes · 120 FPS
+          {currentPayload.sectionCount} Sections ·{' '}
+          {currentPayload.wordCount.toLocaleString()} Words · 0 React VDOM Nodes
+          · 120 FPS
         </Text>
       </View>
 
@@ -1918,7 +2042,8 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
           ⚡ High-Throughput 10K Words Stress Controller
         </Text>
         <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
-          Scale payload volume from 2.5K words (~10m read) up to 10K words (~45m read) and 20K ultra-stress payload.
+          Scale payload volume from 2.5K words (~10m read) up to 10K words (~45m
+          read) and 20K ultra-stress payload.
         </Text>
 
         {/* Word Volume Preset Selector */}
@@ -1931,7 +2056,10 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
               key={w}
               style={[
                 styles.smallBtn,
-                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                {
+                  backgroundColor: theme.smallBtnBg,
+                  borderColor: theme.smallBtnBorder,
+                },
                 selectedWords === w && styles.activeSmallBtn,
               ]}
               onPress={() => {
@@ -1946,7 +2074,11 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
                   selectedWords === w && styles.activeSmallBtnText,
                 ]}
               >
-                {w === 10000 ? '10K (Target)' : w === 20000 ? '20K (Ultra)' : `${w / 1000}K`}
+                {w === 10000
+                  ? '10K (Target)'
+                  : w === 20000
+                    ? '20K (Ultra)'
+                    : `${w / 1000}K`}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1960,7 +2092,10 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               mode === 'sync' && styles.activeSmallBtn,
             ]}
             onPress={() => setMode('sync')}
@@ -1978,7 +2113,10 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
           <TouchableOpacity
             style={[
               styles.smallBtn,
-              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              {
+                backgroundColor: theme.smallBtnBg,
+                borderColor: theme.smallBtnBorder,
+              },
               mode === 'async' && styles.activeSmallBtn,
             ]}
             onPress={() => setMode('async')}
@@ -1997,29 +2135,83 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
 
         {/* Live Metrics Dashboard */}
         <View style={styles.metricsGrid}>
-          <View style={[styles.metricItem, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>⏱️ C++ Parse Latency</Text>
-            <Text style={[styles.metricValue, { color: theme.accent }]}>{parseTimeMs.toFixed(3)} ms</Text>
+          <View
+            style={[
+              styles.metricItem,
+              { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>
+              ⏱️ C++ Parse Latency
+            </Text>
+            <Text style={[styles.metricValue, { color: theme.accent }]}>
+              {parseTimeMs.toFixed(3)} ms
+            </Text>
           </View>
-          <View style={[styles.metricItem, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>📖 Estimated Read Time</Text>
-            <Text style={[styles.metricValue, { color: '#059669' }]}>~{Math.ceil(currentPayload.wordCount / 220)} min read</Text>
+          <View
+            style={[
+              styles.metricItem,
+              { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>
+              📖 Estimated Read Time
+            </Text>
+            <Text style={[styles.metricValue, { color: '#059669' }]}>
+              ~{Math.ceil(currentPayload.wordCount / 220)} min read
+            </Text>
           </View>
-          <View style={[styles.metricItem, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>📝 Total Words</Text>
-            <Text style={[styles.metricValue, { color: '#0284c7' }]}>{currentPayload.wordCount.toLocaleString()} words</Text>
+          <View
+            style={[
+              styles.metricItem,
+              { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>
+              📝 Total Words
+            </Text>
+            <Text style={[styles.metricValue, { color: '#0284c7' }]}>
+              {currentPayload.wordCount.toLocaleString()} words
+            </Text>
           </View>
-          <View style={[styles.metricItem, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>💾 Payload Size</Text>
-            <Text style={[styles.metricValue, { color: '#d97706' }]}>{currentPayload.payloadKb} KB</Text>
+          <View
+            style={[
+              styles.metricItem,
+              { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>
+              💾 Payload Size
+            </Text>
+            <Text style={[styles.metricValue, { color: '#d97706' }]}>
+              {currentPayload.payloadKb} KB
+            </Text>
           </View>
-          <View style={[styles.metricItem, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>🚀 JSI Throughput</Text>
-            <Text style={[styles.metricValue, { color: '#7c3aed' }]}>{throughputMbSec} MB/s</Text>
+          <View
+            style={[
+              styles.metricItem,
+              { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>
+              🚀 JSI Throughput
+            </Text>
+            <Text style={[styles.metricValue, { color: '#7c3aed' }]}>
+              {throughputMbSec} MB/s
+            </Text>
           </View>
-          <View style={[styles.metricItem, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>🏎️ Framerate</Text>
-            <Text style={[styles.metricValue, { color: '#10b981' }]}>120 FPS</Text>
+          <View
+            style={[
+              styles.metricItem,
+              { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            ]}
+          >
+            <Text style={[styles.metricLabel, { color: theme.textMuted }]}>
+              🏎️ Framerate
+            </Text>
+            <Text style={[styles.metricValue, { color: '#10b981' }]}>
+              120 FPS
+            </Text>
           </View>
         </View>
 
@@ -2028,7 +2220,9 @@ function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
           style={[styles.actionBtn, styles.actionBtnPrimary, { marginTop: 8 }]}
           onPress={() => runBenchmark()}
         >
-          <Text style={styles.actionBtnText}>⚡ Re-Run Benchmark on Current Payload</Text>
+          <Text style={styles.actionBtnText}>
+            ⚡ Re-Run Benchmark on Current Payload
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -2259,7 +2453,8 @@ export default function App() {
   const systemColorScheme = useColorScheme();
 
   const isDark =
-    themeMode === 'dark' || (themeMode === 'auto' && systemColorScheme === 'dark');
+    themeMode === 'dark' ||
+    (themeMode === 'auto' && systemColorScheme === 'dark');
   const theme = isDark ? darkTheme : lightTheme;
 
   const cycleThemeMode = useCallback(() => {
@@ -2331,7 +2526,10 @@ export default function App() {
                 style={[
                   styles.tabBtnText,
                   { color: theme.tabInactive },
-                  activeTab === tab && { color: theme.accent, fontWeight: '700' },
+                  activeTab === tab && {
+                    color: theme.accent,
+                    fontWeight: '700',
+                  },
                 ]}
               >
                 {tab}
@@ -2356,7 +2554,9 @@ export default function App() {
         {activeTab === 'Wrappers' && (
           <WrappersTab theme={theme} parsedAst={parsedAst} />
         )}
-        {activeTab === 'JSON' && <JsonTab theme={theme} parsedAst={parsedAst} />}
+        {activeTab === 'JSON' && (
+          <JsonTab theme={theme} parsedAst={parsedAst} />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -2832,4 +3032,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-

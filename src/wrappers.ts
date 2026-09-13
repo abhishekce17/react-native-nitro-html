@@ -133,7 +133,9 @@ export function getDefItems(
 /**
  * Returns all term inline nodes from a DefinitionItem.
  */
-export function getTerms(item: DefinitionItem | null | undefined): InlineNode[] {
+export function getTerms(
+  item: DefinitionItem | null | undefined
+): InlineNode[] {
   if (!item) return [];
   const terms: InlineNode[] = [];
   const len = item.termCount;

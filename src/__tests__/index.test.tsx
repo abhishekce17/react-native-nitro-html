@@ -395,7 +395,13 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
 
   describe('calculateHTMLHeight', () => {
     it('calculates estimated height for layout pass', () => {
-      const height = calculateHTMLHeight('<p>Test Paragraph</p>', 375, 16, 24, 1.0);
+      const height = calculateHTMLHeight(
+        '<p>Test Paragraph</p>',
+        375,
+        16,
+        24,
+        1.0
+      );
       expect(height).toBeGreaterThan(0);
     });
 
@@ -405,7 +411,13 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
     });
 
     it('scales with custom fontScale and baseFontSize', () => {
-      const standardHeight = calculateHTMLHeight('<p>Text</p>', 375, 16, 24, 1.0);
+      const standardHeight = calculateHTMLHeight(
+        '<p>Text</p>',
+        375,
+        16,
+        24,
+        1.0
+      );
       const scaledHeight = calculateHTMLHeight('<p>Text</p>', 375, 24, 32, 1.5);
       expect(scaledHeight).toBeGreaterThanOrEqual(standardHeight);
     });
@@ -439,7 +451,9 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
       expect(getNestedBlocks(null)).toEqual([]);
       expect(getNestedBlocks(undefined)).toEqual([]);
 
-      const article = parseHTML('<ul><li>Item 1<ol><li>Sub-item</li></ol></li></ul>');
+      const article = parseHTML(
+        '<ul><li>Item 1<ol><li>Sub-item</li></ol></li></ul>'
+      );
       const listBlock = getBlocks(article)[0];
       const items = getItems(listBlock);
       expect(items.length).toBe(1);
@@ -455,7 +469,9 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
       expect(getCells(null)).toEqual([]);
       expect(getCells(undefined)).toEqual([]);
 
-      const article = parseHTML('<table><tr><td>Row 1 Cell 1</td><td>Row 1 Cell 2</td></tr></table>');
+      const article = parseHTML(
+        '<table><tr><td>Row 1 Cell 1</td><td>Row 1 Cell 2</td></tr></table>'
+      );
       const tableBlock = getBlocks(article)[0];
       const rows = getRows(tableBlock);
       expect(rows.length).toBe(1);
@@ -468,7 +484,9 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
       expect(getQuoteChildren(null)).toEqual([]);
       expect(getQuoteChildren(undefined)).toEqual([]);
 
-      const article = parseHTML('<blockquote><p>Quoted wisdom</p></blockquote>');
+      const article = parseHTML(
+        '<blockquote><p>Quoted wisdom</p></blockquote>'
+      );
       const quoteBlock = getBlocks(article)[0];
       const quoteChildren = getQuoteChildren(quoteBlock);
       expect(quoteChildren.length).toBe(1);
@@ -483,7 +501,9 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
       expect(getDefs(null)).toEqual([]);
       expect(getDefs(undefined)).toEqual([]);
 
-      const article = parseHTML('<dl><dt>Nitro</dt><dd>Fast Native Modules</dd></dl>');
+      const article = parseHTML(
+        '<dl><dt>Nitro</dt><dd>Fast Native Modules</dd></dl>'
+      );
       const dlBlock = getBlocks(article)[0];
       const defItems = getDefItems(dlBlock);
       expect(defItems.length).toBe(1);
@@ -580,8 +600,8 @@ describe('3. FastHtmlView Props Verification', () => {
     const el = React.createElement(FastHtmlView, {
       html: '<p>Before</p><video src="https://example.com/v.mp4"></video><custom-poll></custom-poll><pre><code>let x = 1;</code></pre><p>After</p>',
       renderers: {
-        Video: CustomVideo,
-        CodeBlock: CustomCode,
+        'Video': CustomVideo,
+        'CodeBlock': CustomCode,
         'custom-poll': CustomPoll,
       },
     });
@@ -769,7 +789,7 @@ describe('5. Combination & Mega Stress Test', () => {
         h2: { fontSize: 20, color: '#0369a1' },
       },
       renderers: {
-        Video: CustomVideo,
+        'Video': CustomVideo,
         'custom-poll': CustomPoll,
       },
       selectable: true,
@@ -815,7 +835,10 @@ ${extra}
     }).join('');
 
     // Estimate word count:
-    const wordCount = stress10KHtml.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).length;
+    const wordCount = stress10KHtml
+      .replace(/<[^>]+>/g, ' ')
+      .trim()
+      .split(/\s+/).length;
     expect(wordCount).toBeGreaterThanOrEqual(10000);
 
     // Synchronous parsing pass
