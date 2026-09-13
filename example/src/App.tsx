@@ -507,6 +507,39 @@ const TYPOGRAPHY_HTML = `
 <p>
   Even within a single paragraph, you can mix styles: standard base font, <span style="font-family: 'Cinzel-Bold'; color: #0284c7; font-weight: bold;">inline Cinzel bold Roman serif</span>, and <span style="color: #10b981; font-weight: 700; font-size: 17px; background-color: #ecfdf5;">inline emerald highlighted text</span>!
 </p>
+
+<hr />
+
+<h2>8. 📐 3-Tier Padding &amp; Margin System</h2>
+<p>Spacing cascades cleanly across three architectural tiers: <b>baseStyle &gt; tagsStyles &gt; Inline style</b>.</p>
+
+<p><b>Tier 1 (baseStyle): Document-Level Defaults</b></p>
+<p>Standard paragraphs inherit baseline vertical rhythm (e.g. <code>marginBottom: 12</code>) globally across the entire document.</p>
+
+<p><b>Tier 2 (tagsStyles): Tag-Level Insets &amp; Borders</b></p>
+<blockquote>
+  <p><b>Semantic &lt;blockquote&gt; via tagsStyles:</b></p>
+  <p>Configured with <code>paddingLeft: 16</code>, <code>marginTop: 12</code>, <code>marginBottom: 12</code>, and a 4px accent border.</p>
+</blockquote>
+
+<p><b>Tier 3 (Inline style="..."): Node-Specific Box Models</b></p>
+
+<div style="background-color: #ecfdf5; border: 1.5px solid #10b981; border-radius: 8px; padding: 14px 16px; margin-top: 10px; margin-bottom: 10px; margin-left: 4px; margin-right: 4px;">
+  <p style="color: #065f46; font-weight: bold; margin-bottom: 4px;">🎯 Uniform Card Spacing (Padding: 14px 16px | Margin: 10px 4px):</p>
+  <p style="color: #047857; margin-bottom: 0;">Inner content is padded comfortably from the borders with smooth 8px rounded corners.</p>
+</div>
+
+<div style="background-color: #fdf2f8; border-left: 5px solid #ec4899; border-radius: 4px; padding-left: 18px; padding-right: 14px; padding-top: 10px; padding-bottom: 10px; margin-left: 4px; margin-right: 4px; margin-top: 10px; margin-bottom: 10px;">
+  <p style="color: #9d174d; font-weight: bold; margin-bottom: 4px;">📐 Directional Spacing (paddingLeft: 18 | paddingTop/Bottom: 10):</p>
+  <p style="color: #be185d; margin-bottom: 0;">Directional offsets create elegant callout banners with asymmetric padding.</p>
+</div>
+
+<p><b>Inline Pill Badges with Horizontal &amp; Vertical Padding:</b></p>
+<p>
+  <span style="background-color: #dbeafe; color: #1e40af; padding-left: 10px; padding-right: 10px; padding-top: 4px; padding-bottom: 4px; margin-right: 8px; border-radius: 9999px; font-weight: bold;">Badge A</span>
+  <span style="background-color: #fef3c7; color: #92400e; padding-left: 10px; padding-right: 10px; padding-top: 4px; padding-bottom: 4px; margin-right: 8px; border-radius: 9999px; font-weight: bold;">Badge B</span>
+  <span style="background-color: #fee2e2; color: #991b1b; padding-left: 10px; padding-right: 10px; padding-top: 4px; padding-bottom: 4px; border-radius: 9999px; font-weight: bold;">Badge C</span>
+</p>
 `;
 
 // ─── Tab navigation ──────────────────────────────────────────────────────────
@@ -1037,7 +1070,52 @@ export function StyledArticle({ html }: { html: string }) {
 </figure>
 
 <hr />
-<p>End of All-Block tagsStyles test suite.</p>
+
+<h2>14. 📐 Padding &amp; Margin 3-Way Showcase (baseStyle vs tagsStyles vs Inline)</h2>
+<p>Spacing cascades with full directional precision: <b>baseStyle (Tier 1) &gt; tagsStyles (Tier 2) &gt; Inline style (Tier 3)</b>.</p>
+
+<h3>A. Way 1: baseStyle (Tier 1 — Document-Wide Defaults)</h3>
+<p>Standard paragraphs inherit global line height, font family, and vertical rhythm (e.g. <code>marginBottom: 12</code>) set in <code>baseStyle</code>. Use the live controller buttons above to test dynamically.</p>
+
+<h3>B. Way 2: tagsStyles (Tier 2 — HTML Tag-Level Custom Spacing)</h3>
+<p>Specific tags receive customized padding, borders, and margins via the <code>tagsStyles</code> prop:</p>
+<blockquote>
+  <p><b>&lt;blockquote&gt; styled via tagsStyles:</b></p>
+  <p>Automatically applies <code>paddingLeft: 18</code>, <code>marginTop: 14</code>, <code>marginBottom: 14</code>, and <code>borderLeftWidth: 4</code>.</p>
+</blockquote>
+
+<pre><code>// &lt;pre&gt; styled via tagsStyles:
+// padding: 12px 16px, marginVertical: 14px, borderRadius: 8px
+const layout = { padding: "12px 16px", margin: "14px 0" };</code></pre>
+
+<h3>C. Way 3: Inline CSS style="..." (Tier 3 — Granular Element Spacing)</h3>
+
+<p><b>1. Uniform Padding &amp; Margin Container:</b></p>
+<div style="background-color: #ede9fe; border: 1.5px solid #8b5cf6; border-radius: 8px; padding: 14px 16px; margin-top: 10px; margin-bottom: 10px; margin-left: 4px; margin-right: 4px;">
+  <p style="color: #5b21b6; font-weight: bold; margin-bottom: 4px;">🎯 Highlight Card Container (padding: 14px 16px | margin: 10px 4px):</p>
+  <p style="color: #6d28d9; margin-bottom: 0;">Comfortable inner breathing room with clean outer card margins and 8px border radius.</p>
+</div>
+
+<p><b>2. Directional Spacing Banner:</b></p>
+<div style="background-color: #ecfdf5; border-left: 5px solid #10b981; border-radius: 6px; padding-left: 18px; padding-right: 14px; padding-top: 10px; padding-bottom: 10px; margin-left: 4px; margin-right: 4px; margin-top: 10px; margin-bottom: 10px;">
+  <p style="color: #065f46; font-weight: bold; margin-bottom: 4px;">✅ Directional Inset Banner (paddingLeft: 18 | paddingTop/Bottom: 10):</p>
+  <p style="color: #047857; margin-bottom: 0;">Custom left gutter with asymmetric vertical and horizontal padding.</p>
+</div>
+
+<p><b>3. Inline Badges with Horizontal &amp; Vertical Padding:</b></p>
+<p>
+  <span style="background-color: #fee2e2; color: #991b1b; padding-left: 10px; padding-right: 10px; padding-top: 4px; padding-bottom: 4px; margin-right: 8px; border-radius: 9999px; font-weight: bold;">CRITICAL ERROR</span>
+  <span style="background-color: #fef3c7; color: #92400e; padding-left: 10px; padding-right: 10px; padding-top: 4px; padding-bottom: 4px; margin-right: 8px; border-radius: 9999px; font-weight: bold;">WARNING</span>
+  <span style="background-color: #dbeafe; color: #1e40af; padding-left: 10px; padding-right: 10px; padding-top: 4px; padding-bottom: 4px; border-radius: 9999px; font-weight: bold;">INFO</span>
+</p>
+
+<p><b>4. Asymmetric Callout Box:</b></p>
+<p style="background-color: #fdf2f8; border: 1.5px dashed #ec4899; border-radius: 8px; padding-left: 16px; padding-right: 16px; padding-top: 12px; padding-bottom: 12px; margin-left: 4px; margin-right: 4px; margin-top: 10px; margin-bottom: 10px; color: #9d174d;">
+  <b>Asymmetric Box:</b> <code>style="padding: 12px 16px; margin: 10px 4px; border: 1.5px dashed #ec4899;"</code>
+</p>
+
+<hr />
+<p>End of All-Block tagsStyles &amp; 3-Tier test suite.</p>
 `;
 
 function RenderedTab({ theme }: { theme: AppTheme }) {
@@ -1045,6 +1123,8 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
   const [useTagsStyles, setUseTagsStyles] = useState(true);
   const [baseFontSize, setBaseFontSize] = useState<number>(16);
   const [baseColorTheme, setBaseColorTheme] = useState<'slate' | 'indigo' | 'emerald' | 'crimson'>('slate');
+  const [baseMarginVertical, setBaseMarginVertical] = useState<number>(0);
+  const [basePaddingHorizontal, setBasePaddingHorizontal] = useState<number>(0);
 
   const colorMap = useMemo(
     () => ({
@@ -1065,43 +1145,64 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
       lineHeight: baseFontSize * 1.5,
       fontFamily: 'System',
       letterSpacing: 0.3,
+      marginVertical: baseMarginVertical > 0 ? baseMarginVertical : undefined,
+      paddingHorizontal: basePaddingHorizontal > 0 ? basePaddingHorizontal : undefined,
     };
-  }, [useBaseStyle, baseFontSize, baseColorTheme, colorMap, theme]);
+  }, [useBaseStyle, baseFontSize, baseColorTheme, colorMap, theme, baseMarginVertical, basePaddingHorizontal]);
 
   const tagsStyles = useMemo(() => {
     if (!useTagsStyles) return undefined;
     return {
-      h1: { fontSize: baseFontSize * 1.75, color: theme.isDark ? '#c084fc' : '#6d28d9', fontWeight: 'bold' as const },
-      h2: { fontSize: baseFontSize * 1.4, color: theme.isDark ? '#38bdf8' : '#0284c7', fontWeight: 'bold' as const },
-      h3: { fontSize: baseFontSize * 1.2, color: theme.isDark ? '#34d399' : '#059669', fontWeight: 'bold' as const },
-      h4: { fontSize: baseFontSize * 1.1, color: theme.isDark ? '#fbbf24' : '#d97706', fontWeight: 'bold' as const },
-      h5: { fontSize: baseFontSize * 1.0, color: theme.isDark ? '#f87171' : '#dc2626', fontWeight: 'bold' as const },
-      h6: { fontSize: baseFontSize * 0.9, color: theme.textMuted, fontWeight: 'bold' as const },
-      p: { lineHeight: baseFontSize * 1.5, color: theme.textSecondary },
+      h1: { fontSize: baseFontSize * 1.75, color: theme.isDark ? '#c084fc' : '#6d28d9', fontWeight: 'bold' as const, marginBottom: 16, marginTop: 8 },
+      h2: { fontSize: baseFontSize * 1.4, color: theme.isDark ? '#38bdf8' : '#0284c7', fontWeight: 'bold' as const, marginBottom: 12, marginTop: 16 },
+      h3: { fontSize: baseFontSize * 1.2, color: theme.isDark ? '#34d399' : '#059669', fontWeight: 'bold' as const, marginBottom: 8, marginTop: 12 },
+      h4: { fontSize: baseFontSize * 1.1, color: theme.isDark ? '#fbbf24' : '#d97706', fontWeight: 'bold' as const, marginBottom: 6, marginTop: 10 },
+      h5: { fontSize: baseFontSize * 1.0, color: theme.isDark ? '#f87171' : '#dc2626', fontWeight: 'bold' as const, marginBottom: 4, marginTop: 8 },
+      h6: { fontSize: baseFontSize * 0.9, color: theme.textMuted, fontWeight: 'bold' as const, marginBottom: 4, marginTop: 6 },
+      p: { lineHeight: baseFontSize * 1.5, color: theme.textSecondary, marginBottom: 12 },
       a: { color: theme.isDark ? '#60a5fa' : '#2563eb', textDecorationLine: 'underline' as const },
       b: { fontWeight: 'bold' as const, color: theme.textPrimary },
       strong: { fontWeight: 'bold' as const, color: theme.textPrimary },
       i: { fontStyle: 'italic' as const, color: theme.textSecondary },
       em: { fontStyle: 'italic' as const, color: theme.textSecondary },
       code: { backgroundColor: theme.codeBg, color: theme.codeColor, fontFamily: 'monospace' },
-      pre: { backgroundColor: theme.preBg, color: theme.preColor, paddingLeft: 12 },
+      pre: {
+        backgroundColor: theme.preBg,
+        color: theme.preColor,
+        paddingLeft: 16,
+        paddingRight: 16,
+        paddingTop: 12,
+        paddingBottom: 12,
+        marginTop: 12,
+        marginBottom: 16,
+        borderRadius: 8,
+      },
       blockquote: {
         borderLeftColor: theme.quoteBorder,
         borderLeftWidth: 4,
         backgroundColor: theme.quoteBg,
-        paddingLeft: 16,
+        paddingLeft: 18,
+        paddingRight: 14,
+        paddingTop: 10,
+        paddingBottom: 10,
+        marginLeft: 12,
+        marginRight: 12,
+        marginTop: 14,
+        marginBottom: 14,
         fontStyle: 'italic' as const,
       },
       table: {
         borderColor: theme.tableBorder,
         borderWidth: 1.5,
         backgroundColor: theme.cardBg,
+        marginTop: 12,
+        marginBottom: 16,
       },
-      dl: { marginBottom: 12 },
-      dt: { fontWeight: 'bold' as const, color: theme.isDark ? '#818cf8' : '#4338ca' },
-      dd: { color: theme.textSecondary, marginLeft: 16 },
-      hr: { color: theme.hrColor, marginTop: 16, marginBottom: 16 },
-      img: { backgroundColor: theme.cardBg },
+      dl: { marginTop: 8, marginBottom: 16 },
+      dt: { fontWeight: 'bold' as const, color: theme.isDark ? '#818cf8' : '#4338ca', marginTop: 8, marginBottom: 2 },
+      dd: { color: theme.textSecondary, marginLeft: 20, marginBottom: 6 },
+      hr: { color: theme.hrColor, marginTop: 20, marginBottom: 20 },
+      img: { backgroundColor: theme.cardBg, marginTop: 12, marginBottom: 12 },
     };
   }, [useTagsStyles, baseFontSize, theme]);
 
@@ -1259,6 +1360,62 @@ function RenderedTab({ theme }: { theme: AppTheme }) {
                 ]}
               >
                 {colorName.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Base Margin Vertical */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle.marginVertical: {baseMarginVertical}px
+        </Text>
+        <View style={styles.controlRow}>
+          {([0, 8, 14, 20] as const).map((m) => (
+            <TouchableOpacity
+              key={m}
+              style={[
+                styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                baseMarginVertical === m && styles.activeSmallBtn,
+              ]}
+              onPress={() => setBaseMarginVertical(m)}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: theme.smallBtnText },
+                  baseMarginVertical === m && styles.activeSmallBtnText,
+                ]}
+              >
+                {m === 0 ? 'DEFAULT' : `${m}px`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Base Padding Horizontal */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle.paddingHorizontal: {basePaddingHorizontal}px
+        </Text>
+        <View style={styles.controlRow}>
+          {([0, 8, 14, 20] as const).map((p) => (
+            <TouchableOpacity
+              key={p}
+              style={[
+                styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                basePaddingHorizontal === p && styles.activeSmallBtn,
+              ]}
+              onPress={() => setBasePaddingHorizontal(p)}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: theme.smallBtnText },
+                  basePaddingHorizontal === p && styles.activeSmallBtnText,
+                ]}
+              >
+                {p === 0 ? 'DEFAULT' : `${p}px`}
               </Text>
             </TouchableOpacity>
           ))}

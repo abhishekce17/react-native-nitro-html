@@ -184,6 +184,31 @@ static std::string parseCssColor(std::string_view raw) {
 
     size_t imp = val.find('!');
     if (imp != std::string_view::npos) val = trimSpacesOnly(val.substr(0, imp));
+    if (val.empty()) return "";
+
+    // ── Fast Path: Hex Colors (#RGB, #RGBA, #RRGGBB, #RRGGBBAA) ────────────────
+    if (val.front() == '#') {
+        if (val.size() == 4) { // #RGB -> #RRGGBB
+            std::string full = "#";
+            full += val[1]; full += val[1];
+            full += val[2]; full += val[2];
+            full += val[3]; full += val[3];
+            return full;
+        } else if (val.size() == 5) { // #RGBA -> #AARRGGBB
+            std::string full = "#";
+            full += val[4]; full += val[4];
+            full += val[1]; full += val[1];
+            full += val[2]; full += val[2];
+            full += val[3]; full += val[3];
+            return full;
+        } else if (val.size() == 9) { // #RRGGBBAA -> #AARRGGBB
+            std::string full = "#";
+            full += val.substr(7, 2); // AA
+            full += val.substr(1, 6); // RRGGBB
+            return full;
+        }
+        return std::string(val);
+    }
 
     std::string lower;
     lower.resize(val.size());
@@ -347,30 +372,6 @@ static std::string parseCssColor(std::string_view raw) {
     auto it = kNamedCssColors.find(lower);
     if (it != kNamedCssColors.end()) {
         return std::string(it->second);
-    }
-
-    // ── Hex Colors (#RGB, #RGBA, #RRGGBB, #RRGGBBAA) ────────────────────────
-    if (val.front() == '#') {
-        if (val.size() == 4) { // #RGB -> #RRGGBB
-            std::string full = "#";
-            full += val[1]; full += val[1];
-            full += val[2]; full += val[2];
-            full += val[3]; full += val[3];
-            return full;
-        } else if (val.size() == 5) { // #RGBA -> #AARRGGBB
-            std::string full = "#";
-            full += val[4]; full += val[4];
-            full += val[1]; full += val[1];
-            full += val[2]; full += val[2];
-            full += val[3]; full += val[3];
-            return full;
-        } else if (val.size() == 9) { // #RRGGBBAA -> #AARRGGBB
-            std::string full = "#";
-            full += val.substr(7, 2); // AA
-            full += val.substr(1, 6); // RRGGBB
-            return full;
-        }
-        return std::string(val);
     }
 
     // ── rgb(...) or rgba(...) ───────────────────────────────────────────────
@@ -1592,6 +1593,20 @@ static std::string computeStyleSignature(
         if (b.fontStyle.has_value()) sig += "fst:" + b.fontStyle.value() + ";";
         if (b.lineHeight.has_value()) sig += "lh:" + std::to_string(b.lineHeight.value()) + ";";
         if (b.fontFeatureSettings.has_value()) sig += "ffs:" + b.fontFeatureSettings.value() + ";";
+        if (b.margin.has_value()) sig += "m:" + std::to_string(b.margin.value()) + ";";
+        if (b.marginVertical.has_value()) sig += "mv:" + std::to_string(b.marginVertical.value()) + ";";
+        if (b.marginHorizontal.has_value()) sig += "mh:" + std::to_string(b.marginHorizontal.value()) + ";";
+        if (b.marginTop.has_value()) sig += "mt:" + std::to_string(b.marginTop.value()) + ";";
+        if (b.marginBottom.has_value()) sig += "mb:" + std::to_string(b.marginBottom.value()) + ";";
+        if (b.marginLeft.has_value()) sig += "ml:" + std::to_string(b.marginLeft.value()) + ";";
+        if (b.marginRight.has_value()) sig += "mr:" + std::to_string(b.marginRight.value()) + ";";
+        if (b.padding.has_value()) sig += "p:" + std::to_string(b.padding.value()) + ";";
+        if (b.paddingVertical.has_value()) sig += "pv:" + std::to_string(b.paddingVertical.value()) + ";";
+        if (b.paddingHorizontal.has_value()) sig += "ph:" + std::to_string(b.paddingHorizontal.value()) + ";";
+        if (b.paddingTop.has_value()) sig += "pt:" + std::to_string(b.paddingTop.value()) + ";";
+        if (b.paddingBottom.has_value()) sig += "pb:" + std::to_string(b.paddingBottom.value()) + ";";
+        if (b.paddingLeft.has_value()) sig += "pl:" + std::to_string(b.paddingLeft.value()) + ";";
+        if (b.paddingRight.has_value()) sig += "pr:" + std::to_string(b.paddingRight.value()) + ";";
     }
     if (tagsStyles.has_value()) {
         sig += "ts:" + std::to_string(tagsStyles.value().size()) + ";";
@@ -1599,10 +1614,29 @@ static std::string computeStyleSignature(
             sig += pair.first + ":";
             if (pair.second.fontSize.has_value()) sig += std::to_string(pair.second.fontSize.value());
             if (pair.second.color.has_value()) sig += pair.second.color.value();
+            if (pair.second.backgroundColor.has_value()) sig += pair.second.backgroundColor.value();
             if (pair.second.fontFamily.has_value()) sig += pair.second.fontFamily.value();
             if (pair.second.fontWeight.has_value()) sig += pair.second.fontWeight.value();
             if (pair.second.fontStyle.has_value()) sig += pair.second.fontStyle.value();
+            if (pair.second.lineHeight.has_value()) sig += std::to_string(pair.second.lineHeight.value());
             if (pair.second.fontFeatureSettings.has_value()) sig += pair.second.fontFeatureSettings.value();
+            if (pair.second.margin.has_value()) sig += "m:" + std::to_string(pair.second.margin.value());
+            if (pair.second.marginVertical.has_value()) sig += "mv:" + std::to_string(pair.second.marginVertical.value());
+            if (pair.second.marginHorizontal.has_value()) sig += "mh:" + std::to_string(pair.second.marginHorizontal.value());
+            if (pair.second.marginTop.has_value()) sig += "mt:" + std::to_string(pair.second.marginTop.value());
+            if (pair.second.marginBottom.has_value()) sig += "mb:" + std::to_string(pair.second.marginBottom.value());
+            if (pair.second.marginLeft.has_value()) sig += "ml:" + std::to_string(pair.second.marginLeft.value());
+            if (pair.second.marginRight.has_value()) sig += "mr:" + std::to_string(pair.second.marginRight.value());
+            if (pair.second.padding.has_value()) sig += "p:" + std::to_string(pair.second.padding.value());
+            if (pair.second.paddingVertical.has_value()) sig += "pv:" + std::to_string(pair.second.paddingVertical.value());
+            if (pair.second.paddingHorizontal.has_value()) sig += "ph:" + std::to_string(pair.second.paddingHorizontal.value());
+            if (pair.second.paddingTop.has_value()) sig += "pt:" + std::to_string(pair.second.paddingTop.value());
+            if (pair.second.paddingBottom.has_value()) sig += "pb:" + std::to_string(pair.second.paddingBottom.value());
+            if (pair.second.paddingLeft.has_value()) sig += "pl:" + std::to_string(pair.second.paddingLeft.value());
+            if (pair.second.paddingRight.has_value()) sig += "pr:" + std::to_string(pair.second.paddingRight.value());
+            if (pair.second.borderLeftWidth.has_value()) sig += "blw:" + std::to_string(pair.second.borderLeftWidth.value());
+            if (pair.second.borderLeftColor.has_value()) sig += "blc:" + pair.second.borderLeftColor.value();
+            if (pair.second.borderRadius.has_value()) sig += "br:" + std::to_string(pair.second.borderRadius.value());
             sig += "|";
         }
     }

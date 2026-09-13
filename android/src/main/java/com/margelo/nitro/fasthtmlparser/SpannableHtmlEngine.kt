@@ -182,189 +182,154 @@ object SpannableHtmlEngine {
         }
 
         val rawFam = family?.trim() ?: ""
-        val cacheKey = "$rawFam|$numericWeight|$isItalic"
-        typefaceCache[cacheKey]?.let { return it }
-
-        fun applyWeight(baseTf: Typeface): Typeface {
+        if (rawFam.isEmpty()) {
             return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                try {
-                    Typeface.create(baseTf, numericWeight, isItalic)
-                } catch (_: Throwable) {
-                    Typeface.create(baseTf, styleInt)
-                }
+                Typeface.create(Typeface.SANS_SERIF, numericWeight, isItalic)
             } else {
-                Typeface.create(baseTf, styleInt)
+                Typeface.defaultFromStyle(styleInt)
             }
         }
 
-        val lowerFam = rawFam.lowercase()
-        val resultTf: Typeface = when (lowerFam) {
-            "", "sans-serif", "system-ui", "system", "default" -> {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        val cacheKey = "$rawFam|$numericWeight|$isItalic"
+        typefaceCache[cacheKey]?.let { return it }
+
+        val defaultForStyle = Typeface.defaultFromStyle(styleInt)
+
+        val candidates = rawFam.split(",").map { it.trim().trim('\'', '"') }.filter { it.isNotEmpty() }
+        var resultTf: Typeface? = null
+
+        for (cand in candidates) {
+            val candLower = cand.lowercase()
+
+            if (candLower == "sans-serif" || candLower == "system-ui" || candLower == "system" || candLower == "default") {
+                resultTf = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     Typeface.create(Typeface.SANS_SERIF, numericWeight, isItalic)
                 } else {
-                    when (numericWeight) {
-                        100, 200 -> Typeface.create("sans-serif-thin", styleInt)
-                        300 -> Typeface.create("sans-serif-light", styleInt)
-                        400 -> Typeface.create("sans-serif", styleInt)
-                        500, 600 -> Typeface.create("sans-serif-medium", styleInt)
-                        700, 800 -> Typeface.create("sans-serif", if (isItalic) Typeface.BOLD_ITALIC else Typeface.BOLD)
-                        900, 950 -> Typeface.create("sans-serif-black", styleInt)
-                        else -> Typeface.create(Typeface.SANS_SERIF, styleInt)
-                    }
+                    Typeface.create(Typeface.SANS_SERIF, styleInt)
                 }
-            }
-            "serif" -> {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                break
+            } else if (candLower == "serif") {
+                resultTf = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     Typeface.create(Typeface.SERIF, numericWeight, isItalic)
                 } else {
                     Typeface.create(Typeface.SERIF, styleInt)
                 }
-            }
-            "monospace" -> {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                break
+            } else if (candLower == "monospace") {
+                resultTf = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     Typeface.create(Typeface.MONOSPACE, numericWeight, isItalic)
                 } else {
                     Typeface.create(Typeface.MONOSPACE, styleInt)
                 }
-            }
-            "cursive" -> {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                break
+            } else if (candLower == "cursive") {
+                resultTf = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     Typeface.create(Typeface.SERIF, numericWeight, true)
                 } else {
                     Typeface.create(Typeface.SERIF, Typeface.ITALIC)
                 }
-            }
-            "fantasy" -> {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                break
+            } else if (candLower == "fantasy") {
+                resultTf = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                     Typeface.create(Typeface.SERIF, numericWeight, isItalic)
                 } else {
                     Typeface.create(Typeface.SERIF, styleInt)
                 }
+                break
             }
-            else -> {
-                var loaded: Typeface? = null
-                val candidates = rawFam.split(",").map { it.trim().trim('\'', '"') }.filter { it.isNotEmpty() }
-                for (cand in candidates) {
-                    val candLower = cand.lowercase()
 
-                    if (candLower == "sans-serif" || candLower == "system-ui" || candLower == "system") {
-                        loaded = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            Typeface.create(Typeface.SANS_SERIF, numericWeight, isItalic)
-                        } else {
-                            Typeface.create(Typeface.SANS_SERIF, styleInt)
-                        }
-                        break
-                    } else if (candLower == "serif") {
-                        loaded = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            Typeface.create(Typeface.SERIF, numericWeight, isItalic)
-                        } else {
-                            Typeface.create(Typeface.SERIF, styleInt)
-                        }
-                        break
-                    } else if (candLower == "monospace") {
-                        loaded = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            Typeface.create(Typeface.MONOSPACE, numericWeight, isItalic)
-                        } else {
-                            Typeface.create(Typeface.MONOSPACE, styleInt)
-                        }
-                        break
-                    }
+            // A. React Native ReactFontManager
+            if (context != null) {
+                val rfmResult = getRfmTypeface(context, cand, styleInt, numericWeight)
+                if (rfmResult != null && rfmResult != Typeface.DEFAULT && rfmResult != defaultForStyle) {
+                    resultTf = rfmResult
+                    break
+                }
+            }
 
-                    // A. React Native ReactFontManager
-                    if (context != null) {
-                        val rfmResult = getRfmTypeface(context, cand, styleInt, numericWeight)
-                        if (rfmResult != null && rfmResult != Typeface.DEFAULT) {
-                            loaded = applyWeight(rfmResult)
-                            break
-                        }
-                    }
+            // B. Direct asset lookup
+            if (context != null) {
+                val weightSuffixes = when (numericWeight) {
+                    100 -> listOf("-Thin", "-Hairline", "_thin", "_hairline", "Thin", "Hairline", "-100", "100")
+                    200 -> listOf("-ExtraLight", "-UltraLight", "_extra_light", "_ultra_light", "ExtraLight", "UltraLight", "-200", "200")
+                    300 -> listOf("-Light", "_light", "Light", "-300", "300")
+                    400 -> listOf("-Regular", "_regular", "Regular", "-400", "400", "")
+                    500 -> listOf("-Medium", "_medium", "Medium", "-500", "500")
+                    600 -> listOf("-SemiBold", "-DemiBold", "_semi_bold", "_demi_bold", "SemiBold", "DemiBold", "-600", "600")
+                    700 -> listOf("-Bold", "_bold", "Bold", "-700", "700")
+                    800 -> listOf("-ExtraBold", "-UltraBold", "-Heavy", "_extra_bold", "_ultra_bold", "_heavy", "ExtraBold", "UltraBold", "Heavy", "-800", "800")
+                    900, 950 -> listOf("-Black", "-Heavy", "_black", "_heavy", "Black", "Heavy", "-900", "900")
+                    else -> listOf("")
+                }
 
-                    // B. Direct asset lookup
-                    if (context != null) {
-                        val weightSuffixes = when (numericWeight) {
-                            100 -> listOf("-Thin", "-Hairline", "_thin", "_hairline", "Thin", "Hairline", "-100", "100")
-                            200 -> listOf("-ExtraLight", "-UltraLight", "_extra_light", "_ultra_light", "ExtraLight", "UltraLight", "-200", "200")
-                            300 -> listOf("-Light", "_light", "Light", "-300", "300")
-                            400 -> listOf("-Regular", "_regular", "Regular", "-400", "400", "")
-                            500 -> listOf("-Medium", "_medium", "Medium", "-500", "500")
-                            600 -> listOf("-SemiBold", "-DemiBold", "_semi_bold", "_demi_bold", "SemiBold", "DemiBold", "-600", "600")
-                            700 -> listOf("-Bold", "_bold", "Bold", "-700", "700")
-                            800 -> listOf("-ExtraBold", "-UltraBold", "-Heavy", "_extra_bold", "_ultra_bold", "_heavy", "ExtraBold", "UltraBold", "Heavy", "-800", "800")
-                            900, 950 -> listOf("-Black", "-Heavy", "_black", "_heavy", "Black", "Heavy", "-900", "900")
-                            else -> listOf("")
-                        }
+                val nameVariants = linkedSetOf(cand, cand.replace(" ", ""), cand.replace(" ", "_"), cand.replace(" ", "-"))
+                val assetPaths = linkedSetOf<String>()
 
-                        val nameVariants = linkedSetOf(cand, cand.replace(" ", ""), cand.replace(" ", "_"), cand.replace(" ", "-"))
-                        val assetPaths = linkedSetOf<String>()
-
-                        for (base in nameVariants) {
-                            for (ws in weightSuffixes) {
-                                if (isItalic) {
-                                    val italSuffixes = if (ws.isEmpty()) listOf("-Italic", "_italic", "Italic") else listOf("${ws}Italic", "${ws}-Italic", "${ws}_italic", "${ws}_Italic")
-                                    for (isuf in italSuffixes) {
-                                        assetPaths.add("fonts/$base$isuf.ttf")
-                                        assetPaths.add("fonts/$base$isuf.otf")
-                                        assetPaths.add("$base$isuf.ttf")
-                                        assetPaths.add("$base$isuf.otf")
-                                    }
-                                }
-                                if (ws.isNotEmpty()) {
-                                    assetPaths.add("fonts/$base$ws.ttf")
-                                    assetPaths.add("fonts/$base$ws.otf")
-                                    assetPaths.add("$base$ws.ttf")
-                                    assetPaths.add("$base$ws.otf")
-                                }
-                            }
-                            assetPaths.add("fonts/$base.ttf")
-                            assetPaths.add("fonts/$base.otf")
-                            assetPaths.add("$base.ttf")
-                            assetPaths.add("$base.otf")
-                        }
-
-                        for (ap in assetPaths) {
-                            if (nonExistentFontAssets.contains(ap)) continue
-                            try {
-                                val assetTf = Typeface.createFromAsset(context.assets, ap)
-                                if (assetTf != null) {
-                                    loaded = applyWeight(assetTf)
-                                    break
-                                }
-                            } catch (_: Throwable) {
-                                nonExistentFontAssets.add(ap)
+                for (base in nameVariants) {
+                    for (ws in weightSuffixes) {
+                        if (isItalic) {
+                            val italSuffixes = if (ws.isEmpty()) listOf("-Italic", "_italic", "Italic") else listOf("${ws}Italic", "${ws}-Italic", "${ws}_italic", "${ws}_Italic")
+                            for (isuf in italSuffixes) {
+                                assetPaths.add("fonts/$base$isuf.ttf")
+                                assetPaths.add("fonts/$base$isuf.otf")
+                                assetPaths.add("$base$isuf.ttf")
+                                assetPaths.add("$base$isuf.otf")
                             }
                         }
-                        if (loaded != null) break
+                        if (ws.isNotEmpty()) {
+                            assetPaths.add("fonts/$base$ws.ttf")
+                            assetPaths.add("fonts/$base$ws.otf")
+                            assetPaths.add("$base$ws.ttf")
+                            assetPaths.add("$base$ws.otf")
+                        }
                     }
+                    assetPaths.add("fonts/$base.ttf")
+                    assetPaths.add("fonts/$base.otf")
+                    assetPaths.add("$base.ttf")
+                    assetPaths.add("$base.otf")
+                }
 
-                    // C. System font lookup
+                for (ap in assetPaths) {
+                    if (nonExistentFontAssets.contains(ap)) continue
                     try {
-                        val created = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            val baseSys = Typeface.create(cand, Typeface.NORMAL)
-                            if (baseSys != null && baseSys != Typeface.DEFAULT) {
-                                Typeface.create(baseSys, numericWeight, isItalic)
-                            } else null
-                        } else {
-                            val baseSys = Typeface.create(cand, styleInt)
-                            if (baseSys != null && baseSys != Typeface.DEFAULT) baseSys else null
-                        }
-                        if (created != null) {
-                            loaded = created
+                        val assetTf = Typeface.createFromAsset(context.assets, ap)
+                        if (assetTf != null) {
+                            resultTf = assetTf
                             break
                         }
-                    } catch (_: Throwable) {}
+                    } catch (_: Throwable) {
+                        nonExistentFontAssets.add(ap)
+                    }
                 }
-
-                loaded ?: if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    Typeface.create(Typeface.SANS_SERIF, numericWeight, isItalic)
-                } else {
-                    Typeface.defaultFromStyle(styleInt)
-                }
+                if (resultTf != null) break
             }
+
+            // C. System font lookup
+            try {
+                val created = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val baseSys = Typeface.create(cand, Typeface.NORMAL)
+                    if (baseSys != null && baseSys != Typeface.DEFAULT && baseSys != defaultForStyle) {
+                        Typeface.create(baseSys, numericWeight, isItalic)
+                    } else null
+                } else {
+                    val baseSys = Typeface.create(cand, styleInt)
+                    if (baseSys != null && baseSys != Typeface.DEFAULT && baseSys != defaultForStyle) baseSys else null
+                }
+                if (created != null) {
+                    resultTf = created
+                    break
+                }
+            } catch (_: Throwable) {}
         }
 
-        typefaceCache[cacheKey] = resultTf
-        return resultTf
+        val finalTf = resultTf ?: if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            Typeface.create(Typeface.SANS_SERIF, numericWeight, isItalic)
+        } else {
+            Typeface.defaultFromStyle(styleInt)
+        }
+
+        typefaceCache[cacheKey] = finalTf
+        return finalTf
     }
 
     init {
@@ -516,10 +481,33 @@ object SpannableHtmlEngine {
             val family = nodeObj.optString("fontFamily")
             val weight = nodeObj.optString("fontWeight")
             val style = nodeObj.optString("fontStyle")
+            val isBold = weight == "bold" || weight == "700" || weight == "800" || weight == "900" || weight == "600" || weight == "semibold"
+            val isItalic = style == "italic"
 
-            if (family.isNotEmpty() || weight.isNotEmpty() || style.isNotEmpty()) {
+            if (family.isNotEmpty()) {
                 builder.setSpan(
                     CustomTypefaceSpan(family, weight, style, context),
+                    start,
+                    end,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            } else if (isBold && isItalic) {
+                builder.setSpan(
+                    StyleSpan(Typeface.BOLD_ITALIC),
+                    start,
+                    end,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            } else if (isBold) {
+                builder.setSpan(
+                    StyleSpan(Typeface.BOLD),
+                    start,
+                    end,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            } else if (isItalic) {
+                builder.setSpan(
+                    StyleSpan(Typeface.ITALIC),
                     start,
                     end,
                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -736,13 +724,21 @@ object SpannableHtmlEngine {
                         val family = blockObj.optString("fontFamily")
                         val weight = blockObj.optString("fontWeight")
                         val style = blockObj.optString("fontStyle")
-                        if (family.isNotEmpty() || weight.isNotEmpty() || style.isNotEmpty()) {
+                        val isBold = weight == "bold" || weight == "700" || weight == "800" || weight == "900" || weight == "600" || weight == "semibold"
+                        val isItalic = style == "italic"
+                        if (family.isNotEmpty()) {
                             blockBuilder.setSpan(
                                 CustomTypefaceSpan(family, weight, style, context),
                                 pStart,
                                 pEnd,
                                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                             )
+                        } else if (isBold && isItalic) {
+                            blockBuilder.setSpan(StyleSpan(Typeface.BOLD_ITALIC), pStart, pEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        } else if (isBold) {
+                            blockBuilder.setSpan(StyleSpan(Typeface.BOLD), pStart, pEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        } else if (isItalic) {
+                            blockBuilder.setSpan(StyleSpan(Typeface.ITALIC), pStart, pEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                         }
 
                         val itemChildren = itemObj.optJSONArray("children")
