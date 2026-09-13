@@ -1,12 +1,12 @@
 {
-  "name": "react-native-fast-html-parser",
-  "version": "2.0.1",
+  "name": "react-native-nitro-html",
+  "version": "0.1.0",
   "description": "Ultra-fast HTML parser and 100% native Fabric RichText renderer for React Native. Powered by C++ (Lexbor) and zero-copy Nitro JSI",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
     ".": {
-      "react-native-fast-html-parser-source": "./src/index.tsx",
+      "react-native-nitro-html-source": "./src/index.tsx",
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
@@ -38,7 +38,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-fast-html-parser-example",
+    "example": "yarn workspace react-native-nitro-html-example",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
     "nitrogen": "nitrogen",
@@ -53,14 +53,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abhishekce17/react-native-fast-html-parser.git"
+    "url": "git+https://github.com/abhishekce17/react-native-nitro-html.git"
   },
   "author": "abhishekce17 <abhisheklprajapati18@gmail.com> (https://github.com/abhishekce17)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/abhishekce17/react-native-fast-html-parser/issues"
+    "url": "https://github.com/abhishekce17/react-native-nitro-html/issues"
   },
-  "homepage": "https://github.com/abhishekce17/react-native-fast-html-parser#readme",
+  "homepage": "https://github.com/abhishekce17/react-native-nitro-html#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

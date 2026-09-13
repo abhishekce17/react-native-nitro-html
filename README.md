@@ -1,16 +1,19 @@
-# react-native-fast-html-parser
+# react-native-nitro-html
 
-[![npm](https://img.shields.io/npm/v/react-native-fast-html-parser?color=orange&label=npm)](https://www.npmjs.com/package/react-native-fast-html-parser)
-[![license](https://img.shields.io/npm/l/react-native-fast-html-parser?color=green&label=license)](LICENSE)
-[![platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20Android-lightgrey)](https://github.com/abhishekce17/react-native-fast-html-parser)
+[![npm](https://img.shields.io/npm/v/react-native-nitro-html?color=orange&label=npm)](https://www.npmjs.com/package/react-native-nitro-html)
+[![license](https://img.shields.io/npm/l/react-native-nitro-html?color=green&label=license)](LICENSE)
+[![platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20Android-lightgrey)](https://github.com/abhishekce17/react-native-nitro-html)
 [![nitro](https://img.shields.io/badge/powered%20by-Nitro%20Modules-blue)](https://nitro.margelo.com)
 [![cpp](https://img.shields.io/badge/core-C%2B%2B%20(Lexbor)-blue?logo=c%2B%2B)](https://github.com/lexbor/lexbor)
 
-A high-performance HTML Content & Editorial Pipeline for React Native. Powered by the ultra-fast, spec-compliant C++ Lexbor engine integrated via direct C++ JSI using Margelo Nitro Modules.
+An ultra-fast, production-ready HTML Content & Editorial Pipeline for React Native. Engineered specifically for rich editorial apps, blogs, news feeds, documentation readers, and high-throughput content streams where traditional JavaScript-based HTML renderers suffer from thread lockups, frame drops, and bloated Virtual DOM overhead.
 
-**Zero binary prebuilts, zero postinstall scripts, zero extra toolchains required.** Compiles directly alongside your application via standard CMake and CocoaPods.
+Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to the native runtime via zero-copy **Margelo Nitro Modules** (JSI):
 
-It provides dual execution modes: **Lazy native-backed AST access** that avoids materializing the complete AST in JavaScript for instant UI rendering, and a **1-Pass Native JSON pipeline** (`parseHTMLToJSON`) for offline persistence, background workers, and global state management.
+- **0 React Virtual DOM Allocations**: Renders multi-paragraph articles directly into **Apple TextKit 2** (iOS) and **Precomputed Spannables** (Android) for rock-solid **120 FPS scrolling**.
+- **Continuous Multi-Paragraph Text Selection**: Drag native selection handles seamlessly across headings, paragraphs, blockquotes, and lists in a single continuous native gesture.
+- **Custom Component Slot Injection**: Intercept specific blocks (`<video>`, interactive widgets, code snippets) and inject custom React components seamlessly into the native stream while preserving full React state.
+- **Dual Pipeline Architecture**: Lazy native-backed AST access for instant UI rendering, plus a **1-Pass Native JSON pipeline** (`parseHTMLToJSON`) for offline caching in MMKV, SQLite, or WatermelonDB.
 
 ---
 
@@ -20,64 +23,40 @@ It provides dual execution modes: **Lazy native-backed AST access** that avoids 
 - [Empirical Benchmarks](#-empirical-benchmarks)
 - [Installation & Setup](#-installation--setup)
 - [Architecture Overview](#-architecture-overview)
-- [Core API Reference](#-core-api-reference)
-  - [`parseHTML(html)`](#1-parsehtmlhtml)
-  - [`parseHTMLToJSON(html)`](#2-parsehtmltojsonhtml)
-- [React Native UI Components](#-react-native-ui-components)
+- [💡 Best Practices (Do's and Don'ts)](#-best-practices-dos-and-donts)
+- [🎨 React Native UI Components](#-react-native-ui-components)
   - [`<FastHtmlView />`](#fasthtmlview-)
-    - [Basic Rendering & Styling](#basic-rendering--styling)
-    - [`parsedAst` (Parse Once, Render Many)](#parsedast--parse-once-render-many)
-    - [Custom Renderer Injection (`renderers`)](#custom-renderer-injection-renderers)
-    - [Continuous Text Selection (`selectable`)](#continuous-text-selection-selectable)
-    - [Hyperlink Interception (`onLinkPress`)](#hyperlink-interception-onlinkpress)
-  - [`<NativeHtmlView />` (Low-Level Fabric Component)](#nativehtmlview-low-level-fabric-component)
-    - [Imperative Methods (`getTextContent()`)](#imperative-methods-gettextcontent)
-- [AST Traversal & Wrapper Utilities](#-ast-traversal--wrapper-utilities)
-  - [`getBlocks(article)`](#1-getblocksarticle)
-  - [`getChildren(node)`](#2-getchildrennode)
-  - [`getItems(block)`](#3-getitemsblock)
-  - [`getNestedBlocks(item)`](#4-getnestedblocksitem)
-  - [`getRows(block)`](#5-getrowsblock)
-  - [`getCells(row)`](#6-getcellsrow)
-  - [`getQuoteChildren(block)`](#7-getquotechildrenblock)
-  - [`getDefItems(block)`](#8-getdefitemsblock)
-- [Application Canonical Adapters](#-application-canonical-adapters)
-  - [`createCanonicalAdapter(config)`](#createcanonicaladapterconfig)
-  - [`adapter.adapt(parsedJson)`](#adapteradaptparsedjson)
-  - [`BlockTransformer<TOutput>`](#blocktransformertoutput)
-- [Low-Level JSI HybridObject API](#-low-level-jsi-hybridobject-api)
-  - [`ParsedArticle`](#parsedarticle)
-    - [`.length`](#parsedarticlelength)
-    - [`.getBlock(index)`](#parsedarticlegetblockindex)
-    - [`.toJSON()`](#parsedarticletojson)
-  - [`ContentBlock`](#contentblock)
-    - [All Properties](#contentblock-properties)
-    - [`.getChild(index)`](#contentblockgetchildindex)
-    - [`.getQuoteChild(index)`](#contentblockgetquotechildindex)
-    - [`.getItem(index)`](#contentblockgetitemindex)
-    - [`.getRow(index)`](#contentblockgetrowindex)
-    - [`.getDefItem(index)`](#contentblockgetdefitemindex)
-  - [`InlineNode`](#inlinenode)
-    - [Properties & `.getChild(index)`](#inlinenode-properties--getchildindex)
-  - [`ListItem`](#listitem)
-    - [`.getChild(index)` & `.getNested(index)`](#listitem-getchildindex--getnestedindex)
-  - [`TableRow` & `TableCell`](#tablerow--tablecell)
-    - [`TableRow.getCell(index)`](#tablerowgetcellindex)
-    - [`TableCell.getChild(index)`](#tablecellgetchildindex)
-  - [`DefinitionItem`](#definitionitem)
-    - [`.getTerm(index)` & `.getDef(index)`](#definitionitem-gettermindex--getdefindex)
-  - [`FastHtmlParser` (Nitro HybridObject Singleton)](#fasthtmlparser-nitro-hybridobject-singleton)
-    - [`.parse(html)` & `.parseToJSON(html)`](#fasthtmlparserparsehtml--parsetojsonhtml)
-- [Block Type Reference & Properties](#-block-type-reference--properties)
-- [JSON AST Data Models](#-json-ast-data-models)
-- [Advanced Production Recipes](#-advanced-production-recipes)
-  - [Recipe 1: Drop-in `@shopify/flash-list` Virtualization](#recipe-1-drop-in-shopifyflash-list-virtualization)
-  - [Recipe 2: Offline Caching with MMKV / SQLite](#recipe-2-offline-caching-with-mmkv--sqlite)
-  - [Recipe 3: Custom Video Player Integration](#recipe-3-custom-video-player-integration)
-  - [Recipe 4: Custom Syntax Highlighting](#recipe-4-custom-syntax-highlighting)
-  - [Recipe 5: Interactive Custom Callout / Poll Widget](#recipe-5-interactive-custom-callout--poll-widget)
-- [Full TypeScript Type Reference](#-full-typescript-type-reference)
-- [HTML Compatibility Matrix](#-html-compatibility-matrix)
+  - [All Props Reference](#all-props-reference)
+  - [Comprehensive Props Examples](#comprehensive-props-examples)
+- [🧱 All Supported HTML Content Blocks](#-all-supported-html-content-blocks)
+  - [1. Paragraphs (`<p>`)](#1-paragraphs-p)
+  - [2. Headings (`<h1>` to `<h6>`)](#2-headings-h1-to-h6)
+  - [3. Blockquotes & Quotes (`<blockquote>`, `<q>`)](#3-blockquotes--quotes-blockquote-q)
+  - [4. Code Blocks (`<pre><code>`)](#4-code-blocks-precode)
+  - [5. Lists & Nested Lists (`<ul>`, `<ol>`, `<li>`)](#5-lists--nested-lists-ul-ol-li)
+  - [6. Data Tables (`<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>`)](#6-data-tables-table-thead-tbody-tr-th-td)
+  - [7. Images & Figures (`<img>`, `<figure>`, `<figcaption>`)](#7-images--figures-img-figure-figcaption)
+  - [8. Thematic Break / Dividers (`<hr>`)](#8-thematic-break--dividers-hr)
+  - [9. Definition Lists (`<dl>`, `<dt>`, `<dd>`)](#9-definition-lists-dl-dt-dd)
+  - [10. Inline Phrasing & Spans (`<b>`, `<i>`, `<a>`, `<mark>`, `<sub>`, `<sup>`, etc.)](#10-inline-phrasing--spans)
+- [🔌 Core Methods & Functions API](#-core-methods--functions-api)
+  - [`parseHTML(html)`](#1-parsehtmlhtml)
+  - [`parseHTMLAsync(html)`](#2-parsehtmlasynchtml)
+  - [`normalizeHTML(html)`](#3-normalizehtmlhtml)
+  - [`calculateHTMLHeight(html, width, baseFontSize, baseLineHeight, fontScale)`](#4-calculatehtmlheighthtml-width-basefontsize-baselineheight-fontscale)
+  - [`parseHTMLToJSON(html)`](#5-parsehtmltojsonhtml)
+- [🗂️ Zero-Dependency AST Wrappers](#-zero-dependency-ast-wrappers)
+  - [`getBlocks(article)`](#getblocksarticle)
+  - [`getChildren(node)`](#getchildrennode)
+  - [`getItems(block)`](#getitemsblock)
+  - [`getNestedBlocks(item)`](#getnestedblocksitem)
+  - [`getRows(block)`](#getrowsblock)
+  - [`getCells(row)`](#getcellsrow)
+  - [`getQuoteChildren(block)`](#getquotechildrenblock)
+  - [`getDefItems(block)`](#getdefitemsblock)
+  - [`getTerms(item)`](#gettermsitem)
+  - [`getDefs(item)`](#getdefsitem)
+- [🎮 Low-Level Native Fabric View (`<NativeHtmlView />`)](#-low-level-native-fabric-view-nativehtmlview-)
 - [License](#-license)
 
 ---
@@ -87,11 +66,10 @@ It provides dual execution modes: **Lazy native-backed AST access** that avoids 
 - **Blazing Fast Native Core**: Sub-millisecond HTML parsing written in C++ (Lexbor v2.3.0) and compiled directly into native machine code.
 - **100% Native Fabric RichText Engine (`<FastHtmlView />`)**: Backed by Apple TextKit 2 on iOS and Precomputed Spannables on Android with **0 React Virtual DOM allocations** for maximum 120 FPS performance.
 - **Continuous Multi-Paragraph Text Selection**: Select and copy text seamlessly across multiple headings, paragraphs, blockquotes, and lists in a single continuous native gesture.
-- **Bug-Free Custom Renderer Injector**: Inject custom React components (`renderers={{ video: CustomVideo, code: CustomCode }}`) seamlessly into the native stream with full React state, hooks, and context lifecycle.
+- **Bug-Free Custom Renderer Injector**: Inject custom React components (`renderers={{ Video: CustomVideo, CodeBlock: CustomCode }}`) seamlessly into the native stream with full React state, hooks, and context lifecycle.
 - **1-Pass Native JSON Pipeline**: Direct `parseHTMLToJSON()` native serialization for SQLite, MMKV, WatermelonDB, and Redux caching.
-- **Application Canonical Adapters**: Decouple parser AST from domain schemas (e.g. RSS feed, CMS models) with `createCanonicalAdapter()`.
-- **Zero-Dependency AST Wrappers**: 8 convenient helper functions to traverse blocks, inlines, lists, tables, quotes, and definition lists as standard JS arrays.
-- **Strict Tag Normalization Contract**: Validated against 60+ HTML tags. See [HTML_COMPATIBILITY_MATRIX.md](./HTML_COMPATIBILITY_MATRIX.md).
+- **Print-Grade Typography & OpenType**: Native support for `fontFeatureSettings` (tabular numbers `"tnum"`, fractions `"frac"`, small-caps `"smcp"`, slashed zero `"zero"`) and 100–900 numeric font weights.
+- **Horizontal Scroll Native Tables**: Fluid horizontal data tables with zero subview bloat and automatic dynamic color theme resolution.
 
 ---
 
@@ -99,14 +77,14 @@ It provides dual execution modes: **Lazy native-backed AST access** that avoids 
 
 Measured on native C++ (Lexbor) engine across standard payload tiers:
 
-| Payload Tier | Exact Size  | AST Blocks    | Parse Time     | 1-Pass JSON Time | Total Time     | Sustained Throughput |
-| :----------- | :---------- | :------------ | :------------- | :--------------- | :------------- | :------------------- |
-| **1 KB**     | 1.65 KB     | 8 blocks      | **0.007 ms**   | 0.002 ms         | **0.010 ms**   | 163.53 MB/s          |
-| **10 KB**    | 11.55 KB    | 56 blocks     | **0.042 ms**   | 0.015 ms         | **0.056 ms**   | 200.27 MB/s          |
-| **100 KB**   | 100.67 KB   | 488 blocks    | **0.353 ms**   | 0.128 ms         | **0.481 ms**   | 204.48 MB/s          |
-| **500 KB**   | 500.07 KB   | 2,424 blocks  | **1.746 ms**   | 0.612 ms         | **2.357 ms**   | 207.15 MB/s          |
-| **1 MB**     | 1,024.89 KB | 4,968 blocks  | **3.618 ms**   | 1.243 ms         | **4.861 ms**   | 205.91 MB/s          |
-| **5 MB**     | 5,121.16 KB | 24,824 blocks | **20.401 ms**  | 6.500 ms         | **26.901 ms**  | 185.91 MB/s          |
+| Payload Tier | Exact Size  | AST Blocks     | Parse Time      | 1-Pass JSON Time | Total Time      | Sustained Throughput |
+| :----------- | :---------- | :------------- | :-------------- | :--------------- | :-------------- | :------------------- |
+| **1 KB**     | 1.13 KB     | 6 blocks       | **0.005 ms**    | 0.003 ms         | **0.008 ms**    | 130.99 MB/s          |
+| **10 KB**    | 10.18 KB    | 55 blocks      | **0.038 ms**    | 0.028 ms         | **0.066 ms**    | 150.58 MB/s          |
+| **100 KB**   | 100.10 KB   | 541 blocks     | **0.377 ms**    | 0.269 ms         | **0.646 ms**    | 151.27 MB/s          |
+| **500 KB**   | 500.08 KB   | 2,697 blocks   | **1.897 ms**    | 1.343 ms         | **3.241 ms**    | 150.70 MB/s          |
+| **1 MB**     | 1,024.46 KB | 5,506 blocks   | **3.908 ms**    | 2.824 ms         | **6.732 ms**    | 148.60 MB/s          |
+| **5 MB**     | 5,120.10 KB | 27,439 blocks  | **19.684 ms**   | 13.966 ms        | **33.650 ms**   | 148.59 MB/s          |
 
 ---
 
@@ -114,10 +92,10 @@ Measured on native C++ (Lexbor) engine across standard payload tiers:
 
 ```bash
 # Using npm
-npm install react-native-fast-html-parser react-native-nitro-modules
+npm install react-native-nitro-html react-native-nitro-modules
 
 # Using yarn
-yarn add react-native-fast-html-parser react-native-nitro-modules
+yarn add react-native-nitro-html react-native-nitro-modules
 ```
 
 ### iOS Setup
@@ -129,14 +107,6 @@ cd ios && pod install
 ### Android Setup
 
 No additional configuration required. Android builds automatically link native C++ artifacts via CMake and Nitro Modules.
-
-### Rebuild Application
-
-```bash
-npx react-native run-ios
-# or
-npx react-native run-android
-```
 
 ---
 
@@ -167,72 +137,16 @@ npx react-native run-android
 
 ---
 
-## 🔌 Core API Reference
+## 💡 Best Practices (Do's and Don'ts)
 
-### 1. `parseHTML(html)`
-
-Parses raw HTML into a lazy native JSI `ParsedArticle` HybridObject. Elements are traversed on-demand via direct C++ pointers with zero upfront JavaScript heap allocations.
-
-#### Type Signature
-
-```typescript
-function parseHTML(html: string): ParsedArticle | null;
-```
-
-#### Example
-
-```typescript
-import { parseHTML, type ParsedArticle } from 'react-native-fast-html-parser';
-
-const html = `
-  <article>
-    <h1>Supercharged React Native</h1>
-    <p>Render <b>bold</b> text with sub-millisecond parsing speed.</p>
-  </article>
-`;
-
-const article: ParsedArticle | null = parseHTML(html);
-
-if (article) {
-  console.log('Total Block Count:', article.length); // 2
-  const firstBlock = article.getBlock(0);
-  console.log('First Block Type:', firstBlock?.type); // "Heading"
-  console.log('Heading Level:', firstBlock?.level); // 1
-}
-```
-
----
-
-### 2. `parseHTMLToJSON(html)`
-
-Parses raw HTML and directly serializes it to a compact JSON string in a single native pass inside C++. The native memory is immediately released. Ideal for background workers, offline persistence, and Redux/Zustand state slices.
-
-#### Type Signature
-
-```typescript
-function parseHTMLToJSON(html: string): string;
-```
-
-#### Example
-
-```typescript
-import {
-  parseHTMLToJSON,
-  type ParsedArticleData,
-} from 'react-native-fast-html-parser';
-
-const html = `<h2>Fast Pipeline</h2><p>Saved directly to storage.</p>`;
-
-// 1. Get raw JSON string from native C++ pipeline
-const jsonString: string = parseHTMLToJSON(html);
-
-// 2. Parse into typed JS object tree if needed
-const data: ParsedArticleData = JSON.parse(jsonString);
-
-console.log('Blocks count:', data.blocks.length); // 2
-console.log('First Block Type:', data.blocks[0].type); // "heading"
-console.log('First Block Level:', (data.blocks[0] as any).level); // 2
-```
+| Category | ✅ DO | ❌ DON'T |
+| :--- | :--- | :--- |
+| **Style Memoization** | Memoize `baseStyle` and `tagsStyles` with `useMemo` or declare them outside component renders. | Don't pass inline new object literals `baseStyle={{ fontSize: 16 }}` inside high-frequency re-rendering parent components. |
+| **Document Slicing** | Pass the whole article HTML directly into a single `<FastHtmlView />` to maintain 0 VDOM overhead and 120 FPS native scrolling. | Don't split HTML into 50 separate `<FastHtmlView />` instances for each paragraph. |
+| **Massive Payloads (10K+ words)** | Use `mode="async"` or `parseHTMLAsync()` to offload AST tokenization to background C++ worker threads. | Don't run synchronous parsing of massive multi-megabyte HTML strings on the JS main thread. |
+| **List Virtualization (`FlashList`)** | Use `parseHTML(html)` once, extract blocks with `getBlocks(article)`, and pass `parsedAst` to list items. | Don't re-parse raw HTML strings inside every list item row's render function. |
+| **Custom Renderers** | Use `renderers` only for interactive, media, or dynamic components (e.g. `<video>`, polls, live charts). | Don't replace standard typography blocks (`Paragraph`, `Heading`) with custom React renderers unless custom interactive JSX state is required. |
+| **Text Selection** | Keep `selectable={true}` to provide continuous native iOS/Android cursor dragging and copy-paste. | Don't wrap `<FastHtmlView />` in non-selectable gesture blockers if users need text copying. |
 
 ---
 
@@ -240,1098 +154,110 @@ console.log('First Block Level:', (data.blocks[0] as any).level); // 2
 
 ### `<FastHtmlView />`
 
-The primary, high-performance Fabric component to render HTML directly into native platform text engines (**Apple TextKit 2 on iOS** and **Precomputed Spannables on Android**).
+The primary component that translates HTML directly into **Apple TextKit 2** on iOS and **Precomputed Spannables** on Android with **0 React Virtual DOM nodes**.
 
-Because it operates natively, it creates **0 React Virtual DOM nodes** for text, headings, and lists, sustaining smooth **120 FPS scrolling** and **continuous text selection** across multiple paragraphs.
+---
 
-#### Props
+### All Props Reference
 
 | Prop | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `html` | `string` | `undefined` | The raw HTML string to parse and render. |
-| `mode` | `'sync' \| 'async'` | `'sync'` | Parse execution mode (`'sync'` on main thread or `'async'` offloaded to C++ worker thread). |
-| `parsedAst` | `ParsedArticle \| null` | `undefined` | Pre-parsed AST object (used if parsed ahead of time). |
+| `mode` | `'sync' \| 'async'` | `'sync'` | Parsing mode (`'sync'` on main thread or `'async'` offloaded to C++ worker pool). |
+| `parsedAst` | `ParsedArticle \| null` | `undefined` | Pre-parsed AST object (used for "parse once, render many" workflows). |
 | `baseStyle` | `TextStyle & { fontFeatureSettings?: string }` | `undefined` | Base typography style inherited by all text elements. |
-| `tagsStyles` | `Record<string, TextStyle \| ViewStyle>` | `{}` | Style overrides keyed by tag name (`h1`, `p`, `a`, `code`, `blockquote`, etc.). |
-| `renderers` | `Record<string, CustomBlockRenderer>` | `{}` | Custom React component overrides for block types (Video, Polls, Code, etc.). |
-| `selectable` | `boolean` | `true` | Enables continuous multi-paragraph text selection & copy-paste. |
-| `fontFeatureSettings`| `string` | `undefined` | OpenType font feature settings (e.g. `'"tnum" 1'`, `'"liga" 1'`). |
-| `onLinkPress` | `(url: string) => void` | `undefined` | Callback triggered when an `<a>` anchor link is pressed. |
+| `tagsStyles` | `Record<string, TextStyle \| ViewStyle>` | `{}` | Tag-level style overrides (`h1`, `p`, `a`, `code`, `blockquote`, `table`, etc.). |
+| `renderers` | `Record<string, CustomBlockRenderer>` | `{}` | Custom React component overrides for specific block types (Video, Code, Polls). |
+| `selectable` | `boolean` | `true` | Enables continuous native multi-paragraph text selection. |
+| `fontFeatureSettings`| `string` | `undefined` | OpenType font feature settings (e.g. `'"tnum" 1'`, `'"frac" 1'`, `'"smcp" 1'`). |
+| `onLinkPress` | `(url: string) => void` | `undefined` | Callback invoked when an `<a>` hyperlink is pressed. |
 | `style` | `ViewStyle` | `undefined` | Container style for the root `<View>`. |
 
 ---
 
-#### Basic Rendering & Styling
+### Comprehensive Props Examples
 
-```tsx
-import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { FastHtmlView } from 'react-native-fast-html-parser';
-
-export function SimpleArticleScreen() {
-  const html = `
-    <h1>Getting Started</h1>
-    <p>This is a paragraph with <b>bold</b>, <i>italic</i>, and <code>inline code</code>.</p>
-    <blockquote>Knowledge is power.</blockquote>
-  `;
-
-  return (
-    <ScrollView style={styles.container}>
-      <FastHtmlView
-        html={html}
-        baseStyle={{
-          fontSize: 16,
-          color: '#1e293b',
-          lineHeight: 26,
-        }}
-        tagsStyles={{
-          h1: { fontSize: 28, color: '#0f172a', fontWeight: '800', marginBottom: 12 },
-          blockquote: { backgroundColor: 'rgba(99, 102, 241, 0.08)', color: '#4338ca' },
-          code: { color: '#09b43a', backgroundColor: '#f1f5f9' },
-        }}
-      />
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff', padding: 16 },
-});
-```
-
----
-
-#### `parsedAst` — Parse Once, Render Many
-
-Parse the AST exactly once (e.g. in a screen-level `useMemo` or state store) and pass the pre-parsed `ParsedArticle` object to avoid redundant parsing across re-renders:
-
+#### 1. `html`, `baseStyle`, and `tagsStyles`
 ```tsx
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import {
-  parseHTML,
-  FastHtmlView,
-  type ParsedArticle,
-} from 'react-native-fast-html-parser';
+import { FastHtmlView } from 'react-native-nitro-html';
 
-export function OptimizedArticleScreen({ rawHtml }: { rawHtml: string }) {
-  // Parse AST once
-  const parsedAst: ParsedArticle | null = useMemo(() => parseHTML(rawHtml), [rawHtml]);
+export function StyledArticle() {
+  const baseStyle = useMemo(() => ({
+    fontSize: 16,
+    color: '#334155',
+    lineHeight: 26,
+    fontFamily: 'System',
+  }), []);
 
-  return (
-    <ScrollView style={styles.container}>
-      <FastHtmlView
-        parsedAst={parsedAst}
-        baseStyle={{ fontSize: 16, color: '#334155' }}
-        selectable={true}
-      />
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-});
-```
-
----
-
-#### Custom Renderer Injection (`renderers`)
-
-Inject custom React components directly into the native text stream for complex interactive blocks (Video, Code with syntax highlighting, Polls, Ads, Canvas) while preserving standard React component state, hooks, and context:
-
-```tsx
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import {
-  FastHtmlView,
-  type CustomBlockRenderer,
-} from 'react-native-fast-html-parser';
-
-// Custom Interactive Poll block
-const CustomPollRenderer: CustomBlockRenderer = ({ block }) => {
-  const [voted, setVoted] = useState(false);
-
-  return (
-    <View style={styles.pollContainer}>
-      <Text style={styles.pollTitle}>📊 Interactive Poll</Text>
-      <Text style={styles.pollCaption}>{block.caption || 'Do you like Native RichText?'}</Text>
-      <TouchableOpacity
-        style={[styles.pollButton, voted && styles.pollButtonVoted]}
-        onPress={() => setVoted(!voted)}
-      >
-        <Text style={styles.pollButtonText}>{voted ? '✓ Voted (100% Yes)' : 'Vote Yes'}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-// Custom Code block with copy action
-const CustomCodeRenderer: CustomBlockRenderer = ({ block }) => {
-  return (
-    <View style={styles.codeContainer}>
-      <Text style={styles.codeLang}>{block.language || 'code'}</Text>
-      <Text style={styles.codeText}>{block.code}</Text>
-    </View>
-  );
-};
-
-export function InteractiveArticleScreen() {
-  const html = `
-    <h1>Interactive Content Pipeline</h1>
-    <p>Native text renders below with zero virtual DOM overhead.</p>
-    <figure><figcaption>Do you like Native RichText?</figcaption></figure>
-    <pre><code class="language-rust">fn main() { println!("Hello!"); }</code></pre>
-    <p>And continuous text continues below seamlessly.</p>
-  `;
+  const tagsStyles = useMemo(() => ({
+    h1: { fontSize: 26, color: '#0f172a', fontWeight: '800' as const, marginBottom: 12 },
+    h2: { fontSize: 20, color: '#1e293b', fontWeight: '700' as const, marginTop: 16, marginBottom: 8 },
+    p: { color: '#475569', lineHeight: 24 },
+    a: { color: '#2563eb', textDecorationLine: 'underline' as const },
+    blockquote: { backgroundColor: '#f8fafc', borderLeftColor: '#3b82f6', borderLeftWidth: 4, paddingLeft: 12 },
+    code: { backgroundColor: '#f1f5f9', color: '#0f172a', fontFamily: 'Courier' },
+    table: { borderColor: '#cbd5e1', borderWidth: 1 },
+    th: { backgroundColor: '#f1f5f9', color: '#0f172a', fontWeight: 'bold' as const },
+  }), []);
 
   return (
     <FastHtmlView
-      html={html}
-      renderers={{
-        Figure: CustomPollRenderer,
-        CodeBlock: CustomCodeRenderer,
-      }}
+      html="<h1>Editorial Title</h1><p>Styled article text with <a href='https://example.com'>link</a>.</p>"
+      baseStyle={baseStyle}
+      tagsStyles={tagsStyles}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  pollContainer: { backgroundColor: '#f0fdf4', padding: 16, borderRadius: 8, marginVertical: 12 },
-  pollTitle: { fontSize: 14, fontWeight: '700', color: '#166534' },
-  pollCaption: { fontSize: 16, color: '#15803d', marginVertical: 8 },
-  pollButton: { backgroundColor: '#22c55e', padding: 10, borderRadius: 6, alignItems: 'center' },
-  pollButtonVoted: { backgroundColor: '#15803d' },
-  pollButtonText: { color: '#ffffff', fontWeight: 'bold' },
-  codeContainer: { backgroundColor: '#1e293b', padding: 12, borderRadius: 8, marginVertical: 8 },
-  codeLang: { color: '#94a3b8', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  codeText: { color: '#f8fafc', fontFamily: 'Courier', marginTop: 4 },
-});
 ```
 
----
-
-#### Continuous Text Selection (`selectable`)
-
-Allows users to highlight, select, and copy text across headings, paragraphs, lists, and blockquotes with standard native platform selection handles.
-
+#### 2. `mode="async"` (Background C++ Worker Thread Offloading)
 ```tsx
 <FastHtmlView
-  html="<h1>Title</h1><p>Select me and the title in one gesture!</p>"
-  selectable={true} // Default: true
+  html={massiveHtmlPayload}
+  mode="async" // Offloads Lexbor tokenization to a thread-safe C++ worker pool
+  baseStyle={{ fontSize: 15, color: '#1e293b' }}
 />
 ```
 
----
-
-#### Hyperlink Interception (`onLinkPress`)
-
-Intercept link clicks to handle in-app navigation, web views, or custom deep links:
-
+#### 3. `parsedAst` (Parse Once, Render Many)
 ```tsx
-import React from 'react';
-import { Linking, Alert } from 'react-native';
-import { FastHtmlView } from 'react-native-fast-html-parser';
+import React, { useMemo } from 'react';
+import { parseHTML, FastHtmlView } from 'react-native-nitro-html';
 
-export function LinkHandlingExample() {
-  const html = `<p>Check the <a href="https://nitro.margelo.com">Nitro Docs</a> or open <a href="myapp://profile/123">Profile</a>.</p>`;
-
-  const handleLinkPress = (url: string) => {
-    if (url.startsWith('myapp://')) {
-      Alert.alert('In-App Deep Link', url);
-    } else {
-      Linking.openURL(url).catch((err) => console.error('Failed to open URL:', err));
-    }
-  };
+export function CachedAstScreen({ rawHtml }: { rawHtml: string }) {
+  // 1. Parse AST once and memoize
+  const parsedAst = useMemo(() => parseHTML(rawHtml), [rawHtml]);
 
   return (
     <FastHtmlView
-      html={html}
-      tagsStyles={{ a: { color: '#2563eb', textDecorationLine: 'underline' } }}
-      onLinkPress={handleLinkPress}
+      parsedAst={parsedAst}
+      baseStyle={{ fontSize: 16, color: '#1e293b' }}
     />
   );
 }
 ```
 
----
-
-### `<NativeHtmlView />` (Low-Level Fabric Component)
-
-The underlying raw Nitro HybridView component. Renders raw HTML strings directly into TextKit 2 / Spannables without segment splitting.
-
-```tsx
-import React, { useRef } from 'react';
-import { View, Button, StyleSheet } from 'react-native';
-import {
-  NativeHtmlView,
-  type NativeHtmlViewMethods,
-} from 'react-native-fast-html-parser';
-
-export function DirectNativeViewExample() {
-  const nativeRef = useRef<NativeHtmlViewMethods>(null);
-
-  const handleInspect = () => {
-    // Imperative method on NativeHtmlView instance
-    const text = nativeRef.current?.getTextContent();
-    console.log('Raw text content rendered in native view:', text);
-  };
-
-  return (
-    <View style={styles.container}>
-      <NativeHtmlView
-        ref={nativeRef}
-        html="<h2>Direct Native View</h2><p>Zero React VDOM nodes.</p>"
-        baseStyle={{ fontSize: 16, color: '#0f172a' }}
-        tagsStyles={{ h2: { fontSize: 22, color: '#1e40af' } }}
-        selectable={true}
-        onLinkPress={(url) => console.log('Clicked:', url)}
-        style={styles.view}
-      />
-      <Button title="Get Rendered Text" onPress={handleInspect} />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  view: { flex: 1 },
-});
-```
-
-#### Imperative Methods (`getTextContent()`)
-
-- `getTextContent(): string` — Returns the plain rendered text content currently displayed inside the native `UITextView` (iOS) or `TextView` (Android).
-
----
-
-## 🛠 AST Traversal & Wrapper Utilities
-
-The library exports 8 ergonomic traversal helper functions that convert low-level JSI HostObject getters into standard JavaScript arrays:
-
-### 1. `getBlocks(article)`
-
-Extracts all top-level `ContentBlock[]` elements from a `ParsedArticle`.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  type ContentBlock,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(
-  '<h1>Title</h1><p>First paragraph.</p><p>Second paragraph.</p>'
-);
-const blocks: ContentBlock[] = getBlocks(article);
-
-console.log(`Extracted ${blocks.length} blocks`); // 3
-blocks.forEach((block, index) => {
-  console.log(`Block #${index}: ${block.type}`); // "Heading", "Paragraph", "Paragraph"
-});
-```
-
----
-
-### 2. `getChildren(node)`
-
-Extracts all inline child nodes (`InlineNode[]`) from a `ContentBlock`, `InlineNode`, `TableCell`, or `ListItem`.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getChildren,
-  type InlineNode,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(
-  '<p>Welcome to <b>React Native</b> with <a href="https://nitro.margelo.com">Nitro Modules</a>.</p>'
-);
-const paragraph = getBlocks(article)[0];
-
-const inlines: InlineNode[] = getChildren(paragraph);
-inlines.forEach((inline) => {
-  console.log(`Type: ${inline.type}, Text: "${inline.text}", URL: "${inline.url}"`);
-  // Type: Text, Text: "Welcome to ", URL: ""
-  // Type: Bold, Text: "React Native", URL: ""
-  // Type: Text, Text: " with ", URL: ""
-  // Type: Link, Text: "Nitro Modules", URL: "https://nitro.margelo.com"
-});
-```
-
----
-
-### 3. `getItems(block)`
-
-Extracts all `ListItem[]` entries from an ordered (`<ol>`) or unordered (`<ul>`) `List` block.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getItems,
-  getChildren,
-  type ListItem,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <ul>
-    <li>First item</li>
-    <li>Second item with <b>bold</b> text</li>
-  </ul>
-`);
-const listBlock = getBlocks(article)[0];
-
-if (listBlock.type === 'List') {
-  const items: ListItem[] = getItems(listBlock);
-  console.log(`List has ${items.length} items`); // 2
-  items.forEach((item, index) => {
-    const textNodes = getChildren(item);
-    console.log(`Item ${index + 1}:`, textNodes.map((n) => n.text).join(''));
-  });
-}
-```
-
----
-
-### 4. `getNestedBlocks(item)`
-
-Extracts nested sub-blocks (`ContentBlock[]`) contained inside a `ListItem` (for multi-level hierarchical lists).
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getItems,
-  getNestedBlocks,
-  type ContentBlock,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <ul>
-    <li>
-      Parent item
-      <ul>
-        <li>Sub item 1</li>
-        <li>Sub item 2</li>
-      </ul>
-    </li>
-  </ul>
-`);
-const listBlock = getBlocks(article)[0];
-const parentItem = getItems(listBlock)[0];
-
-const nestedBlocks: ContentBlock[] = getNestedBlocks(parentItem);
-console.log('Nested sub-lists count:', nestedBlocks.length); // 1
-console.log('Nested block type:', nestedBlocks[0].type); // "List"
-```
-
----
-
-### 5. `getRows(block)`
-
-Extracts all `TableRow[]` entries from a `Table` block.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getRows,
-  type TableRow,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <table>
-    <tr><th>Framework</th><th>Language</th></tr>
-    <tr><td>React Native</td><td>TypeScript</td></tr>
-    <tr><td>Nitro Modules</td><td>C++</td></tr>
-  </table>
-`);
-const tableBlock = getBlocks(article)[0];
-
-const rows: TableRow[] = getRows(tableBlock);
-console.log(`Table has ${rows.length} rows`); // 3
-```
-
----
-
-### 6. `getCells(row)`
-
-Extracts all `TableCell[]` entries from a `TableRow`.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getRows,
-  getCells,
-  getChildren,
-  type TableCell,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(
-  '<table><tr><td>Col 1</td><td>Col 2</td><td>Col 3</td></tr></table>'
-);
-const tableBlock = getBlocks(article)[0];
-const firstRow = getRows(tableBlock)[0];
-
-const cells: TableCell[] = getCells(firstRow);
-console.log(`Row has ${cells.length} cells`); // 3
-cells.forEach((cell, index) => {
-  const cellInlines = getChildren(cell);
-  console.log(`Cell ${index}:`, cellInlines.map((c) => c.text).join(''));
-});
-```
-
----
-
-### 7. `getQuoteChildren(block)`
-
-Extracts nested `ContentBlock[]` elements from a `Quote` (`<blockquote>`) block.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getQuoteChildren,
-  getChildren,
-  type ContentBlock,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <blockquote>
-    <p>Simplicity is prerequisite for reliability.</p>
-    <p>— Edsger W. Dijkstra</p>
-  </blockquote>
-`);
-const quoteBlock = getBlocks(article)[0];
-
-const subBlocks: ContentBlock[] = getQuoteChildren(quoteBlock);
-console.log(`Quote contains ${subBlocks.length} inner blocks`); // 2
-subBlocks.forEach((child) => {
-  if (child.type === 'Paragraph') {
-    console.log('Quote line:', getChildren(child).map((c) => c.text).join(''));
-  }
-});
-```
-
----
-
-### 8. `getDefItems(block)`
-
-Extracts all `DefinitionItem[]` entries from a `DefinitionList` (`<dl>`) block.
-
-```typescript
-import {
-  parseHTML,
-  getBlocks,
-  getDefItems,
-  type DefinitionItem,
-} from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <dl>
-    <dt>JSI</dt>
-    <dd>JavaScript Interface for direct C++ to JavaScript communication.</dd>
-    <dt>Nitro Modules</dt>
-    <dd>Next-generation React Native native module framework.</dd>
-  </dl>
-`);
-const dlBlock = getBlocks(article)[0];
-
-const defItems: DefinitionItem[] = getDefItems(dlBlock);
-console.log(`Definition list has ${defItems.length} pairs`); // 2
-defItems.forEach((item) => {
-  const term = item.getTerm(0)?.text;
-  const def = item.getDef(0)?.text;
-  console.log(`${term} => ${def}`);
-});
-```
-
----
-
-## 🔀 Application Canonical Adapters
-
-### `createCanonicalAdapter(config)`
-
-Decouple parser AST internals from your proprietary application schema (such as NewsFeed, Blog, or CMS models) using `createCanonicalAdapter()`.
-
-#### Configuration Schema (`CanonicalAdapterConfig`)
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `transformers` | `Record<string, (block: any, index: number) => TDomainBlock>` | Specialized transformers keyed by block type (`heading`, `paragraph`, `image`, `code`, `list`, `table`, `quote`, etc.). |
-| `transformBlock` | `(block: ContentBlockData, index: number) => TDomainBlock` | Fallback transformer for any block type without a specialized transformer. |
-| `transformArticle` | `(article: ParsedArticleData, blocks: TDomainBlock[]) => TDomainArticle` | Transforms the array of domain blocks into your application's root article document. |
-
----
-
-### `adapter.adapt(parsedJson)`
-
-Takes the parsed JSON data object and returns your typed domain document:
-
-```typescript
-import {
-  createCanonicalAdapter,
-  parseHTMLToJSON,
-  type ParsedArticleData,
-  type ContentBlockData,
-} from 'react-native-fast-html-parser';
-
-// 1. Define your domain models
-interface FeedItem {
-  id: string;
-  type: 'title' | 'body' | 'image' | 'generic';
-  text?: string;
-  sourceUrl?: string;
-}
-
-interface FeedArticle {
-  articleId: string;
-  title: string;
-  items: FeedItem[];
-  itemCount: number;
-}
-
-// 2. Create the canonical adapter
-const newsFeedAdapter = createCanonicalAdapter<FeedArticle, FeedItem>({
-  transformers: {
-    heading: (block, index) => ({
-      id: `h-${index}`,
-      type: 'title',
-      text: block.children?.map((c) => c.text).join(''),
-    }),
-    paragraph: (block, index) => ({
-      id: `p-${index}`,
-      type: 'body',
-      text: block.children?.map((c) => c.text).join(''),
-    }),
-    image: (block, index) => ({
-      id: `img-${index}`,
-      type: 'image',
-      sourceUrl: block.url,
-    }),
-  },
-  transformBlock: (block, index) => ({
-    id: `misc-${index}`,
-    type: 'generic',
-  }),
-  transformArticle: (article, items) => ({
-    articleId: `feed-${Date.now()}`,
-    title: article.title || 'Untitled',
-    items: items,
-    itemCount: items.length,
-  }),
-});
-
-// 3. Adapt parsed JSON AST
-const jsonString = parseHTMLToJSON('<h1>News Headline</h1><p>Breaking story.</p>');
-const parsedData: ParsedArticleData = JSON.parse(jsonString);
-
-const canonicalResult: FeedArticle = newsFeedAdapter.adapt(parsedData);
-console.log('Resulting Domain Article:', canonicalResult);
-```
-
----
-
-### `BlockTransformer<TOutput>`
-
-Type helper to strongly type individual block transformer functions:
-
-```typescript
-import {
-  type BlockTransformer,
-  type HeadingBlockData,
-  type ParagraphBlockData,
-} from 'react-native-fast-html-parser';
-
-const headingTransform: BlockTransformer<{ headingText: string; level: number }> = (
-  block,
-  index
-) => {
-  const heading = block as HeadingBlockData;
-  return {
-    headingText: heading.children?.map((c) => c.text).join('') ?? '',
-    level: heading.level,
-  };
-};
-```
-
----
-
-## ⚙️ Low-Level JSI HybridObject API
-
-When using `parseHTML()`, you interact directly with high-performance C++ JSI `HybridObject` instances:
-
-### `ParsedArticle`
-
-Represents the root parsed document backed by native C++ memory.
-
-| Property / Method | Return Type | Description |
-| :--- | :--- | :--- |
-| `length` | `number` | Total number of top-level content blocks. |
-| `getBlock(index: number)` | `ContentBlock \| null` | Returns the `ContentBlock` at index without copying. |
-| `toJSON()` | `string` | Serializes the article into a JSON string natively. |
-
-#### Example: Inspecting and Serializing `ParsedArticle`
-
-```typescript
-import { parseHTML, type ParsedArticle } from 'react-native-fast-html-parser';
-
-const article: ParsedArticle | null = parseHTML('<h1>Title</h1><p>Body</p>');
-
-if (article) {
-  // 1. Read .length
-  const totalBlocks = article.length; // 2
-
-  // 2. Call .getBlock(index)
-  for (let i = 0; i < totalBlocks; i++) {
-    const block = article.getBlock(i);
-    console.log(`Block #${i} type:`, block?.type);
-  }
-
-  // 3. Call .toJSON() to serialize directly from native memory
-  const jsonStr = article.toJSON();
-  console.log('Serialized JSON:', jsonStr);
-}
-```
-
-#### `article.toJSON()` vs `parseHTMLToJSON()` — when to use each
-
-| | `article.toJSON()` | `parseHTMLToJSON(html)` |
-| :--- | :--- | :--- |
-| **When** | You already have a `ParsedArticle` (e.g. used for rendering first, then want to cache) | You only need JSON — no live rendering |
-| **Native memory** | Freed when `article` is GC'd | Freed immediately after the call |
-| **JSI overhead** | 1 extra JSI call on an existing HybridObject | 0 — native→JSON in a single C++ pass |
-| **Best for** | Cache-after-render, debug `console.log` | Background workers, MMKV/SQLite pipelines |
-
----
-
-### `ContentBlock`
-
-Represents an individual structural content block in the AST.
-
-#### ContentBlock Properties
-
-| Field | Return Type | Applicable Block Types | Description |
-| :--- | :--- | :--- | :--- |
-| `type` | `string` | All | Block type name (`Paragraph`, `Heading`, `List`, `Table`, `Image`, `Figure`, `CodeBlock`, `Quote`, `DefinitionList`, `Video`, `Audio`, `Embed`, `Separator`). |
-| `level` | `number` | `Heading` | Heading level (1 to 6). |
-| `url` | `string` | `Image`, `Figure` | Image asset URL. |
-| `alt` | `string` | `Image`, `Figure` | Accessibility alternative text. |
-| `caption` | `string` | `Figure`, `Video`, `Audio`, `Embed` | Caption or subtitle text. |
-| `linkUrl` | `string` | `Image`, `Figure` | Destination hyperlink URL if the image is wrapped inside an `<a>` tag. |
-| `code` | `string` | `CodeBlock` | Raw source code text. |
-| `language` | `string` | `CodeBlock` | Syntax language (e.g. `typescript`, `rust`, `python`). |
-| `src` | `string` | `Video`, `Audio`, `Embed` | Media source URL or embed iframe target. |
-| `poster` | `string` | `Video` | Video preview thumbnail poster URL. |
-| `title` | `string` | `Embed` | Title attribute of embed/iframe. |
-| `ordered` | `boolean` | `List` | `true` for `<ol>`, `false` for `<ul>`. |
-| `childCount` | `number` | `Paragraph`, `Heading` | Number of inline child nodes. |
-| `quoteChildCount` | `number` | `Quote` | Number of child blocks inside a blockquote. |
-| `itemCount` | `number` | `List`, `DefinitionList` | Number of list items or definition items. |
-| `rowCount` | `number` | `Table` | Number of rows in table. |
-| `defItemCount` | `number` | `DefinitionList` | Number of term/definition pairs. |
-
-#### ContentBlock Methods
-
-##### `ContentBlock.getChild(index)`
-Returns the inline child node (`InlineNode | null`) for `Paragraph` or `Heading` blocks.
-
-```typescript
-const headingBlock = article.getBlock(0);
-for (let i = 0; i < headingBlock.childCount; i++) {
-  const inline = headingBlock.getChild(i);
-  console.log('Heading inline text:', inline?.text);
-}
-```
-
-##### `ContentBlock.getQuoteChild(index)`
-Returns the nested `ContentBlock | null` inside a `Quote` block.
-
-```typescript
-const quoteBlock = article.getBlock(1);
-for (let i = 0; i < quoteBlock.quoteChildCount; i++) {
-  const childBlock = quoteBlock.getQuoteChild(i);
-  console.log('Quote inner block type:', childBlock?.type);
-}
-```
-
-##### `ContentBlock.getItem(index)`
-Returns the `ListItem | null` inside a `List` block.
-
-```typescript
-const listBlock = article.getBlock(2);
-for (let i = 0; i < listBlock.itemCount; i++) {
-  const item = listBlock.getItem(i);
-  console.log('Item child count:', item?.childCount);
-}
-```
-
-##### `ContentBlock.getRow(index)`
-Returns the `TableRow | null` inside a `Table` block.
-
-```typescript
-const tableBlock = article.getBlock(3);
-for (let i = 0; i < tableBlock.rowCount; i++) {
-  const row = tableBlock.getRow(i);
-  console.log('Row cell count:', row?.cellCount);
-}
-```
-
-##### `ContentBlock.getDefItem(index)`
-Returns the `DefinitionItem | null` inside a `DefinitionList` block.
-
-```typescript
-const dlBlock = article.getBlock(4);
-for (let i = 0; i < dlBlock.defItemCount; i++) {
-  const defItem = dlBlock.getDefItem(i);
-  console.log('Term count:', defItem?.termCount);
-}
-```
-
----
-
-### `InlineNode`
-
-Represents an inline formatted text node (plain text, bold, italic, anchor links, inline code).
-
-#### `InlineNode` Properties & `.getChild(index)`
-
-| Field / Method | Return Type | Description |
-| :--- | :--- | :--- |
-| `type` | `string` | Node type: `'Text'`, `'Bold'`, `'Italic'`, `'Link'`, `'InlineCode'`, `'Break'`. |
-| `text` | `string` | Text content of the node. |
-| `url` | `string` | Destination URL (for `Link` nodes). |
-| `childCount` | `number` | Number of nested inline formatting nodes. |
-| `getChild(i)` | `InlineNode \| null` | Returns the nested inline node at index `i`. |
-
-```typescript
-import { parseHTML, getBlocks } from 'react-native-fast-html-parser';
-
-const article = parseHTML('<p>Visit <a href="https://example.com"><b>Our Site</b></a>!</p>');
-const para = getBlocks(article)[0];
-
-for (let i = 0; i < para.childCount; i++) {
-  const node = para.getChild(i);
-  if (!node) continue;
-
-  console.log(`Node [${node.type}]: "${node.text}" (URL: ${node.url})`);
-
-  // Drill down into nested inline children (e.g. <b> inside <a>)
-  for (let j = 0; j < node.childCount; j++) {
-    const subNode = node.getChild(j);
-    console.log(`  -> SubNode [${subNode?.type}]: "${subNode?.text}"`);
-  }
-}
-```
-
----
-
-### `ListItem`
-
-Represents an item (`<li>`) within an ordered or unordered list.
-
-#### `ListItem` `.getChild(index)` & `.getNested(index)`
-
-| Field / Method | Return Type | Description |
-| :--- | :--- | :--- |
-| `childCount` | `number` | Number of inline child formatting nodes in this item. |
-| `getChild(i)` | `InlineNode \| null` | Returns the inline child node at index `i`. |
-| `nestedCount` | `number` | Number of nested sub-lists or sub-blocks inside this item. |
-| `getNested(i)` | `ContentBlock \| null` | Returns the nested `ContentBlock` at index `i`. |
-
-```typescript
-import { parseHTML, getBlocks } from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <ul>
-    <li>Item 1</li>
-    <li>Item 2
-      <ul><li>Sub-item 2.1</li></ul>
-    </li>
-  </ul>
-`);
-const list = getBlocks(article)[0];
-
-for (let i = 0; i < list.itemCount; i++) {
-  const item = list.getItem(i);
-  if (!item) continue;
-
-  // 1. Inspect text inline nodes
-  for (let c = 0; c < item.childCount; c++) {
-    const inline = item.getChild(c);
-    console.log(`Item #${i} Text:`, inline?.text);
-  }
-
-  // 2. Inspect nested sub-blocks
-  for (let n = 0; n < item.nestedCount; n++) {
-    const subList = item.getNested(n);
-    console.log(`Item #${i} Nested Block Type:`, subList?.type); // "List"
-  }
-}
-```
-
----
-
-### `TableRow` & `TableCell`
-
-Represents rows and individual cells within an HTML table.
-
-#### `TableRow.getCell(index)`
-| Field / Method | Return Type | Description |
-| :--- | :--- | :--- |
-| `cellCount` | `number` | Total number of cells in the row. |
-| `getCell(i)` | `TableCell \| null` | Returns the `TableCell` at index `i`. |
-
-#### `TableCell.getChild(index)`
-| Field / Method | Return Type | Description |
-| :--- | :--- | :--- |
-| `childCount` | `number` | Total number of inline nodes in the cell. |
-| `getChild(i)` | `InlineNode \| null` | Returns the `InlineNode` at index `i`. |
-
-```typescript
-import { parseHTML, getBlocks } from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <table>
-    <tr><th>Library</th><th>Speed</th></tr>
-    <tr><td>FastHtmlParser</td><td>Sub-ms</td></tr>
-  </table>
-`);
-const table = getBlocks(article)[0];
-
-for (let r = 0; r < table.rowCount; r++) {
-  const row = table.getRow(r);
-  if (!row) continue;
-
-  const rowValues: string[] = [];
-  for (let c = 0; c < row.cellCount; c++) {
-    const cell = row.getCell(c);
-    if (!cell) continue;
-
-    const cellText: string[] = [];
-    for (let n = 0; n < cell.childCount; n++) {
-      const inline = cell.getChild(n);
-      if (inline?.text) cellText.push(inline.text);
-    }
-    rowValues.push(cellText.join(''));
-  }
-  console.log(`Row ${r}:`, rowValues.join(' | '));
-}
-```
-
----
-
-### `DefinitionItem`
-
-Represents a `<dt>` / `<dd>` term-definition pair in a `<dl>` list.
-
-#### `DefinitionItem` `.getTerm(index)` & `.getDef(index)`
-
-| Field / Method | Return Type | Description |
-| :--- | :--- | :--- |
-| `termCount` | `number` | Number of term (`<dt>`) inline nodes. |
-| `getTerm(i)` | `InlineNode \| null` | Returns the `<dt>` inline node at index `i`. |
-| `defCount` | `number` | Number of definition (`<dd>`) inline nodes. |
-| `getDef(i)` | `InlineNode \| null` | Returns the `<dd>` inline node at index `i`. |
-
-```typescript
-import { parseHTML, getBlocks } from 'react-native-fast-html-parser';
-
-const article = parseHTML(`
-  <dl>
-    <dt>TextKit 2</dt>
-    <dd>Apple modern high-performance text rendering framework.</dd>
-  </dl>
-`);
-const dl = getBlocks(article)[0];
-
-for (let i = 0; i < dl.defItemCount; i++) {
-  const item = dl.getDefItem(i);
-  if (!item) continue;
-
-  const term = item.getTerm(0)?.text;
-  const def = item.getDef(0)?.text;
-  console.log(`${term}: ${def}`);
-}
-```
-
----
-
-### `FastHtmlParser` (Nitro HybridObject Singleton)
-
-If you need direct programmatic access to the underlying Nitro HybridObject instance without the convenience wrapper functions:
-
-```typescript
-import { NitroModules } from 'react-native-nitro-modules';
-import type { FastHtmlParser, ParsedArticle } from 'react-native-fast-html-parser';
-
-// Access the native singleton
-const parser = NitroModules.createHybridObject<FastHtmlParser>('FastHtmlParser');
-
-// 1. Direct parse
-const article: ParsedArticle | null = parser.parse('<h1>Direct JSI</h1>');
-
-// 2. Direct JSON parse
-const jsonString: string = parser.parseToJSON('<p>Single pass string</p>');
-```
-
----
-
-## 📖 Block Type Reference & Properties
-
-| `block.type` | Applicable Properties | Example HTML Tag Origin |
-| :--- | :--- | :--- |
-| **`Paragraph`** | `childCount`, `getChild(i)` | `<p>`, `<address>`, `<div>` with inline text |
-| **`Heading`** | `level` (1-6), `childCount`, `getChild(i)` | `<h1>`, `<h2>`, `<h3>`, `<h4>`, `<h5>`, `<h6>` |
-| **`List`** | `ordered`, `itemCount`, `getItem(i)` | `<ul>`, `<ol>`, `<li>` |
-| **`Table`** | `rowCount`, `getRow(i)` | `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` |
-| **`Image`** | `url`, `alt`, `linkUrl` | `<img>`, `<picture>`, `<p><img>`, `<a href="..."><img>` |
-| **`Figure`** | `url`, `alt`, `caption`, `linkUrl` | `<figure>`, `<figcaption>` |
-| **`CodeBlock`** | `code`, `language` | `<pre><code>` |
-| **`Quote`** | `quoteChildCount`, `getQuoteChild(i)` | `<blockquote>`, `<q>` |
-| **`DefinitionList`** | `defItemCount`, `getDefItem(i)` | `<dl>`, `<dt>`, `<dd>` |
-| **`Video`** | `src`, `poster`, `caption` | `<video>`, `<source>` |
-| **`Audio`** | `src`, `caption` | `<audio>` |
-| **`Embed`** | `src`, `title`, `caption` | `<iframe>`, `<embed>` |
-| **`Separator`** | _None_ | `<hr>` |
-
----
-
-## 📄 JSON AST Data Models
-
-When using `parseHTMLToJSON()`, the JSON output maps directly to these standard TypeScript interfaces:
-
-```typescript
-import type {
-  ParsedArticleData,
-  ContentBlockData,
-  HeadingBlockData,
-  ParagraphBlockData,
-  ListBlockData,
-  ListItemData,
-  TableBlockData,
-  TableRowData,
-  TableCellData,
-  ImageBlockData,
-  CodeBlockData,
-  QuoteBlockData,
-  CustomBlockData,
-  InlineNodeData,
-} from 'react-native-fast-html-parser';
-```
-
----
-
-## 🚀 Advanced Production Recipes
-
-### Recipe 1: Drop-in `@shopify/flash-list` Virtualization
-
-For massive 50,000+ word editorial documents on low-end Android hardware, combine `getBlocks` with `@shopify/flash-list`:
-
-```tsx
-import React, { useMemo } from 'react';
-import { FlashList } from '@shopify/flash-list';
-import {
-  parseHTML,
-  getBlocks,
-  FastHtmlView,
-  type ContentBlock,
-} from 'react-native-fast-html-parser';
-
-export function FlashListArticle({ html }: { html: string }) {
-  const article = useMemo(() => parseHTML(html), [html]);
-  const blocks = useMemo(() => getBlocks(article), [article]);
-
-  const renderItem = ({ item }: { item: ContentBlock }) => {
-    // Wrap individual block into a 1-block virtual article
-    const singleBlockAst = {
-      length: 1,
-      getBlock: (i: number) => (i === 0 ? item : null),
-      toJSON: () => JSON.stringify([item]),
-      equals: () => false,
-      dispose: () => {},
-    } as any;
-
-    return <FastHtmlView parsedAst={singleBlockAst} />;
-  };
-
-  return (
-    <FlashList
-      data={blocks}
-      renderItem={renderItem}
-      estimatedItemSize={60}
-      keyExtractor={(_, index) => `flash-block-${index}`}
-    />
-  );
-}
-```
-
----
-
-### Recipe 2: Offline Caching with MMKV / SQLite
-
-Cache parsed AST structures across application sessions to eliminate HTML parsing overhead on subsequent launches:
-
-```typescript
-import {
-  parseHTMLToJSON,
-  type ParsedArticleData,
-} from 'react-native-fast-html-parser';
-import { MMKV } from 'react-native-mmkv';
-
-const storage = new MMKV();
-
-export function fetchAndCacheArticle(
-  articleId: string,
-  rawHtml: string
-): ParsedArticleData {
-  const cacheKey = `article_ast_${articleId}`;
-
-  // 1. Check offline cache
-  const cachedJson = storage.getString(cacheKey);
-  if (cachedJson) {
-    return JSON.parse(cachedJson);
-  }
-
-  // 2. Parse natively in 1-pass C++ pipeline
-  const nativeJsonString = parseHTMLToJSON(rawHtml);
-
-  // 3. Store serialized JSON directly into MMKV
-  storage.set(cacheKey, nativeJsonString);
-
-  return JSON.parse(nativeJsonString);
-}
-```
-
----
-
-### Recipe 3: Custom Video Player Integration
-
-Intercept `Video` and `Audio` blocks to render native players like `react-native-video`:
-
+#### 4. `renderers` (Custom Component Slot Injection)
 ```tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import {
-  FastHtmlView,
-  type CustomBlockRenderer,
-} from 'react-native-fast-html-parser';
+import { FastHtmlView, type CustomBlockRenderer } from 'react-native-nitro-html';
 
-const CustomVideoRenderer: CustomBlockRenderer = ({ block }) => {
-  return (
-    <View style={styles.videoContainer}>
-      <Text style={styles.videoLabel}>Video Stream</Text>
-      <Text style={styles.videoUrl}>Source: {block.src}</Text>
-      {block.poster ? <Text style={styles.posterText}>Poster: {block.poster}</Text> : null}
-      {block.caption ? <Text style={styles.captionText}>{block.caption}</Text> : null}
-    </View>
-  );
-};
+// Custom Video Renderer
+const CustomVideoRenderer: CustomBlockRenderer = ({ block }) => (
+  <View style={styles.videoCard}>
+    <Text style={styles.videoText}>🎬 Video Player: {block.url}</Text>
+  </View>
+);
 
-export function MediaArticle({ html }: { html: string }) {
+export function MediaArticle() {
+  const html = `
+    <h1>Media Rich Article</h1>
+    <p>Standard text renders natively below.</p>
+    <video src="https://example.com/stream.mp4"></video>
+  `;
+
   return (
     <FastHtmlView
       html={html}
@@ -1343,161 +269,387 @@ export function MediaArticle({ html }: { html: string }) {
 }
 
 const styles = StyleSheet.create({
-  videoContainer: { backgroundColor: '#0f172a', padding: 16, borderRadius: 8, marginVertical: 8 },
-  videoLabel: { color: '#38bdf8', fontWeight: 'bold' },
-  videoUrl: { color: '#f8fafc', fontSize: 13, marginTop: 4 },
-  posterText: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
-  captionText: { color: '#cbd5e1', fontStyle: 'italic', marginTop: 4 },
+  videoCard: { backgroundColor: '#000', padding: 24, borderRadius: 8, marginVertical: 12, alignItems: 'center' },
+  videoText: { color: '#fff', fontWeight: 'bold' },
 });
 ```
 
----
-
-### Recipe 4: Custom Syntax Highlighting
-
+#### 5. `fontFeatureSettings` (OpenType Typography Features)
 ```tsx
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import {
-  FastHtmlView,
-  type CustomBlockRenderer,
-} from 'react-native-fast-html-parser';
-
-const SyntaxHighlightedCode: CustomBlockRenderer = ({ block }) => {
-  return (
-    <View style={styles.box}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>{block.language || 'code'}</Text>
-      </View>
-      <Text style={styles.codeText}>{block.code}</Text>
-    </View>
-  );
-};
-
-export function CodeArticle({ html }: { html: string }) {
-  return (
-    <FastHtmlView
-      html={html}
-      renderers={{
-        CodeBlock: SyntaxHighlightedCode,
-      }}
-    />
-  );
-}
-
-const styles = StyleSheet.create({
-  box: { backgroundColor: '#1e1e1e', borderRadius: 8, padding: 12, marginVertical: 8 },
-  badge: { alignSelf: 'flex-start', backgroundColor: '#333', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  badgeText: { color: '#4ec9b0', fontSize: 11, fontFamily: 'Courier', fontWeight: 'bold' },
-  codeText: { color: '#d4d4d4', fontFamily: 'Courier', fontSize: 13, marginTop: 8 },
-});
+<FastHtmlView
+  html="<p>Invoice Total: $12,450.00 (Tabular figures & fractions: 1/2, 3/4)</p>"
+  fontFeatureSettings='"tnum" 1, "frac" 1, "zero" 1' // Tabular Numbers, Fractions, Slashed Zero
+  baseStyle={{ fontSize: 17, color: '#0f172a' }}
+/>
 ```
 
----
-
-### Recipe 5: Interactive Custom Callout / Poll Widget
-
+#### 6. `onLinkPress` (Hyperlink Interception)
 ```tsx
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import {
-  FastHtmlView,
-  type CustomBlockRenderer,
-} from 'react-native-fast-html-parser';
+import { Linking, Alert } from 'react-native';
+import { FastHtmlView } from 'react-native-nitro-html';
 
-const CalloutWidget: CustomBlockRenderer = ({ block }) => {
-  const [expanded, setExpanded] = useState(false);
+<FastHtmlView
+  html="<p>Visit <a href='https://example.com'>Website</a> or <a href='myapp://settings'>Settings</a></p>"
+  onLinkPress={(url) => {
+    if (url.startsWith('myapp://')) {
+      Alert.alert('In-App Navigation', url);
+    } else {
+      Linking.openURL(url);
+    }
+  }}
+/>
+```
 
-  return (
-    <View style={styles.calloutCard}>
-      <TouchableOpacity onPress={() => setExpanded(!expanded)}>
-        <Text style={styles.calloutHeader}>
-          💡 {block.caption || 'Important Note'} (Tap to {expanded ? 'Collapse' : 'Expand'})
-        </Text>
-      </TouchableOpacity>
-      {expanded && (
-        <Text style={styles.calloutBody}>
-          This is an interactive callout rendered via React Native JSX while surrounding text renders at 120 FPS in native TextKit 2 / Spannables!
-        </Text>
-      )}
-    </View>
-  );
-};
-
-export function CalloutArticle({ html }: { html: string }) {
-  return (
-    <FastHtmlView
-      html={html}
-      renderers={{
-        Figure: CalloutWidget,
-      }}
-    />
-  );
-}
-
-const styles = StyleSheet.create({
-  calloutCard: { backgroundColor: '#eff6ff', borderWidth: 1, borderColor: '#bfdbfe', borderRadius: 8, padding: 12, marginVertical: 8 },
-  calloutHeader: { fontSize: 15, fontWeight: '700', color: '#1d4ed8' },
-  calloutBody: { fontSize: 14, color: '#1e40af', marginTop: 8, lineHeight: 20 },
-});
+#### 7. `selectable` (Continuous Native Selection)
+```tsx
+<FastHtmlView
+  html="<h1>Selectable Title</h1><p>Select multiple paragraphs in a single native swipe gesture.</p>"
+  selectable={true} // Default is true; set to false for non-selectable cards
+/>
 ```
 
 ---
 
-## 📚 Full TypeScript Type Reference
+## 🧱 All Supported HTML Content Blocks
 
-All data structures, props, and custom renderer types are fully exported:
+### 1. Paragraphs (`<p>`)
+```html
+<p>This is a standard paragraph with natural sentence flow, automatic hyphenation, and native line breaks.</p>
+```
+```tsx
+<FastHtmlView
+  html="<p>Paragraph content rendered with 0 React Virtual DOM overhead.</p>"
+  tagsStyles={{ p: { fontSize: 16, lineHeight: 24, color: '#334155' } }}
+/>
+```
+
+### 2. Headings (`<h1>` to `<h6>`)
+```html
+<h1>Main Title (H1)</h1>
+<h2>Section Header (H2)</h2>
+<h3>Subsection (H3)</h3>
+<h4>Topic (H4)</h4>
+<h5>Subtopic (H5)</h5>
+<h6>Micro Header (H6)</h6>
+```
+```tsx
+<FastHtmlView
+  html="<h1>H1 Header</h1><h2>H2 Header</h2>"
+  tagsStyles={{
+    h1: { fontSize: 28, color: '#0f172a', fontWeight: '800' },
+    h2: { fontSize: 22, color: '#1e293b', fontWeight: '700' },
+  }}
+/>
+```
+
+### 3. Blockquotes & Quotes (`<blockquote>`, `<q>`)
+```html
+<blockquote>
+  <p>Simplicity is the soul of efficiency.</p>
+  <cite>— Austin Freeman</cite>
+</blockquote>
+```
+```tsx
+<FastHtmlView
+  html="<blockquote>Knowledge is power.</blockquote>"
+  tagsStyles={{
+    blockquote: {
+      borderLeftColor: '#6366f1',
+      borderLeftWidth: 4,
+      backgroundColor: '#f5f3ff',
+      paddingLeft: 16,
+      color: '#4338ca',
+    },
+  }}
+/>
+```
+
+### 4. Code Blocks (`<pre><code>`)
+```html
+<pre><code class="language-typescript">const answer: number = 42;
+console.log(`The answer is ${answer}`);</code></pre>
+```
+```tsx
+<FastHtmlView
+  html='<pre><code class="typescript">const x = 10;</code></pre>'
+  tagsStyles={{
+    pre: { backgroundColor: '#1e293b', paddingLeft: 12, marginBottom: 12 },
+    code: { color: '#38bdf8', fontFamily: 'Courier', fontSize: 14 },
+  }}
+/>
+```
+
+### 5. Lists & Nested Lists (`<ul>`, `<ol>`, `<li>`)
+```html
+<ul>
+  <li>Architecture Guarantee #1: Zero React Virtual DOM allocations</li>
+  <li>Architecture Guarantee #2: Continuous cross-block text selection</li>
+  <li>Nested ordered sub-list:
+    <ol>
+      <li>First step</li>
+      <li>Second step</li>
+    </ol>
+  </li>
+</ul>
+```
+```tsx
+<FastHtmlView
+  html="<ul><li>Bullet Item 1</li><li>Bullet Item 2</li></ul>"
+  tagsStyles={{
+    ul: { marginBottom: 12 },
+    li: { color: '#334155', lineHeight: 22 },
+  }}
+/>
+```
+
+### 6. Data Tables (`<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>`)
+```html
+<table border="1" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr><th>Metric</th><th>Architecture Target</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>DOM Virtualization</td><td>0 React Virtual DOM Nodes</td><td>Optimal</td></tr>
+    <tr><td>Native Text Rendering</td><td>120 FPS Buttery Scroll</td><td>Passed</td></tr>
+  </tbody>
+</table>
+```
+```tsx
+<FastHtmlView
+  html="<table><tr><th>Key</th><th>Value</th></tr><tr><td>Engine</td><td>Lexbor C++</td></tr></table>"
+  tagsStyles={{
+    table: { borderColor: '#cbd5e1', borderWidth: 1 },
+    th: { backgroundColor: '#f1f5f9', color: '#0f172a', fontWeight: 'bold' },
+    td: { color: '#475569' },
+  }}
+/>
+```
+
+### 7. Images & Figures (`<img>`, `<figure>`, `<figcaption>`)
+```html
+<figure>
+  <img src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800" alt="Gradient Artwork" />
+  <figcaption>Figure 1: High-performance native image stream.</figcaption>
+</figure>
+```
+```tsx
+<FastHtmlView
+  html='<img src="https://example.com/banner.png" alt="Banner" />'
+  tagsStyles={{
+    img: { borderRadius: 8, marginBottom: 12 },
+    figcaption: { color: '#64748b', fontStyle: 'italic', fontSize: 13 },
+  }}
+/>
+```
+
+### 8. Thematic Break / Dividers (`<hr>`)
+```html
+<p>Top section content</p>
+<hr />
+<p>Bottom section content</p>
+```
+```tsx
+<FastHtmlView
+  html="<p>Before</p><hr /><p>After</p>"
+  tagsStyles={{
+    hr: { color: '#e2e8f0' },
+  }}
+/>
+```
+
+### 9. Definition Lists (`<dl>`, `<dt>`, `<dd>`)
+```html
+<dl>
+  <dt>Lexbor</dt>
+  <dd>Ultra-fast spec-compliant HTML5 parsing engine in pure C.</dd>
+  <dt>TextKit 2</dt>
+  <dd>Modern Apple native text storage and layout engine for iOS 16+.</dd>
+</dl>
+```
+```tsx
+<FastHtmlView
+  html="<dl><dt>Title</dt><dd>Description details</dd></dl>"
+  tagsStyles={{
+    dt: { fontWeight: 'bold', color: '#0f172a' },
+    dd: { color: '#475569', marginLeft: 16 },
+  }}
+/>
+```
+
+### 10. Inline Phrasing & Spans
+Supported inline tags: `<b>`, `<strong>`, `<i>`, `<em>`, `<u>`, `<ins>`, `<s>`, `<del>`, `<code>`, `<mark>`, `<sub>`, `<sup>`, `<small>`, `<a>`, `<br>`.
+```html
+<p>
+  <b>Bold</b>, <strong>Strong</strong>, <i>Italic</i>, <em>Emphasis</em>,
+  <u>Underline</u>, <ins>Inserted</ins>, <s>Strikethrough</s>, <del>Deleted</del>,
+  <code>Inline Code</code>, <mark>Highlighted Mark</mark>,
+  <sub>Subscript (H<sub>2</sub>O)</sub>, <sup>Superscript (E=mc<sup>2</sup>)</sup>,
+  <small>Small text</small>, and <a href="https://google.com">Hyperlink</a>.
+</p>
+```
+```tsx
+<FastHtmlView
+  html="<p>Text with <mark>highlight</mark> and <code>inline code</code>.</p>"
+  tagsStyles={{
+    mark: { backgroundColor: '#fef08a', color: '#854d0e' },
+    code: { backgroundColor: '#f1f5f9', color: '#0f172a' },
+    a: { color: '#2563eb', textDecorationLine: 'underline' },
+  }}
+/>
+```
+
+---
+
+## 🔌 Core Methods & Functions API
+
+### 1. `parseHTML(html)`
+Synchronously tokenizes raw HTML into a C++ backed `ParsedArticle` HybridObject with zero upfront JS memory allocation.
+```typescript
+import { parseHTML, type ParsedArticle } from 'react-native-nitro-html';
+
+const article: ParsedArticle | null = parseHTML('<h1>Title</h1><p>Body</p>');
+if (article) {
+  console.log('Block count:', article.length);
+}
+```
+
+### 2. `parseHTMLAsync(html)`
+Asynchronously parses HTML on a background C++ thread, returning a Promise that resolves to `ParsedArticle | null`.
+```typescript
+import { parseHTMLAsync, type ParsedArticle } from 'react-native-nitro-html';
+
+async function loadArticle(html: string) {
+  const article: ParsedArticle | null = await parseHTMLAsync(html);
+  if (article) {
+    console.log('Parsed asynchronously on C++ worker pool:', article.length);
+  }
+}
+```
+
+### 3. `normalizeHTML(html)`
+Cleans and normalizes malformed HTML markup using Lexbor's HTML5 specification parser.
+```typescript
+import { normalizeHTML } from 'react-native-nitro-html';
+
+const cleaned: string = normalizeHTML('<div><p>Unclosed paragraph<b>bold');
+console.log(cleaned); // "<div><p>Unclosed paragraph<b>bold</b></p></div>"
+```
+
+### 4. `calculateHTMLHeight(html, width, baseFontSize, baseLineHeight, fontScale)`
+Calculates estimated native layout height for an HTML payload before rendering, ideal for virtualized list placeholders.
+```typescript
+import { calculateHTMLHeight } from 'react-native-nitro-html';
+
+const estimatedHeight: number = calculateHTMLHeight(
+  '<p>Some long text...</p>',
+  360, // Container width (dp)
+  16,  // Base font size
+  24,  // Base line height
+  1.0  // Font scale factor
+);
+console.log('Estimated native height:', estimatedHeight);
+```
+
+### 5. `parseHTMLToJSON(html)`
+Parses HTML and directly serializes it to a compact JSON string in a single 1-pass native execution.
+```typescript
+import { parseHTMLToJSON, type ParsedArticleData } from 'react-native-nitro-html';
+
+const jsonStr: string = parseHTMLToJSON('<h1>Title</h1><p>Body</p>');
+const data: ParsedArticleData = JSON.parse(jsonStr);
+console.log('Blocks:', data.blocks.length);
+```
+
+---
+
+## 🗂️ Zero-Dependency AST Wrappers
+
+Helper functions that extract children and nested structures from `ParsedArticle` into standard JavaScript arrays:
 
 ```typescript
-import type {
-  // Core HybridObject Interfaces
-  InlineNode,
-  ListItem,
-  TableCell,
-  TableRow,
-  DefinitionItem,
-  ContentBlock,
-  ParsedArticle,
-  FastHtmlParser,
+import {
+  parseHTML,
+  getBlocks,
+  getChildren,
+  getItems,
+  getNestedBlocks,
+  getRows,
+  getCells,
+  getQuoteChildren,
+  getDefItems,
+  getTerms,
+  getDefs,
+} from 'react-native-nitro-html';
 
-  // UI Component Props & Types
-  FastHtmlViewProps,
-  NativeHtmlViewProps,
-  NativeHtmlViewMethods,
-  NativeTextStyle,
-  CustomBlockRenderer,
-  CustomInlineRenderer,
+const article = parseHTML(`
+  <h1>Title</h1>
+  <p>Paragraph with <b>bold</b> text.</p>
+  <ul><li>Item 1</li><li>Item 2</li></ul>
+  <table><tr><td>Cell 1</td></tr></table>
+  <blockquote><p>Quote text</p></blockquote>
+  <dl><dt>Term</dt><dd>Definition</dd></dl>
+`);
 
-  // Canonical Adapter Types
-  CanonicalAdapterConfig,
-  BlockTransformer,
+// 1. Get all top-level blocks
+const blocks = getBlocks(article);
 
-  // JSON AST Data Models
-  InlineNodeData,
-  BaseBlockData,
-  HeadingBlockData,
-  ParagraphBlockData,
-  ListItemData,
-  ListBlockData,
-  TableCellData,
-  TableRowData,
-  TableBlockData,
-  ImageBlockData,
-  CodeBlockData,
-  QuoteBlockData,
-  CustomBlockData,
-  ContentBlockData,
-  ParsedArticleData,
-} from 'react-native-fast-html-parser';
+// 2. Get inline children of a paragraph
+const inlines = getChildren(blocks[1]);
+
+// 3. Get list items & nested blocks
+const listItems = getItems(blocks[2]);
+const nested = getNestedBlocks(listItems[0]);
+
+// 4. Get table rows & cells
+const rows = getRows(blocks[3]);
+const cells = getCells(rows[0]);
+
+// 5. Get quote nested blocks
+const quoteBlocks = getQuoteChildren(blocks[4]);
+
+// 6. Get definition items, terms, and definitions
+const defItems = getDefItems(blocks[5]);
+const terms = getTerms(defItems[0]);
+const defs = getDefs(defItems[0]);
 ```
 
 ---
 
-## 📋 HTML Compatibility Matrix
+## 🎮 Low-Level Native Fabric View (`<NativeHtmlView />`)
 
-For the complete 60+ HTML tag mapping specifications, attributes fidelity table, semantic normalization rules, and test verification suite, see:
+For direct integration with native view hierarchies, use `<NativeHtmlView />`:
 
-👉 **[HTML_COMPATIBILITY_MATRIX.md](./HTML_COMPATIBILITY_MATRIX.md)**
+```tsx
+import React, { useRef } from 'react';
+import { View, Button } from 'react-native';
+import {
+  NativeHtmlView,
+  type NativeHtmlViewMethods,
+} from 'react-native-nitro-html';
+
+export function ImperativeExample() {
+  const ref = useRef<NativeHtmlViewMethods>(null);
+
+  const handleReadText = async () => {
+    if (ref.current) {
+      const text = await ref.current.getTextContent();
+      console.log('Native text content:', text);
+    }
+  };
+
+  return (
+    <View>
+      <NativeHtmlView
+        ref={ref}
+        html="<h1>Headline</h1><p>Sample paragraph.</p>"
+        selectable={true}
+        style={{ flex: 1 }}
+      />
+      <Button title="Get Plain Text" onPress={handleReadText} />
+    </View>
+  );
+}
+```
 
 ---
 

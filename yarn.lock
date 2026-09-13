@@ -7770,9 +7770,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-fast-html-parser-example@workspace:example":
+"react-native-monorepo-config@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "react-native-monorepo-config@npm:0.4.0"
+  dependencies:
+    escape-string-regexp: "npm:^5.0.0"
+    fast-glob: "npm:^3.3.3"
+  checksum: 10c0/62e6e2ab859a2e0e5a4028b9f018043a803bfd35c62017a0ca834fc0ff389b5f9cca82c3bf5332d30644e9488e6144ebb0a94965c918d64fce5dbabe094163f8
+  languageName: node
+  linkType: hard
+
+"react-native-nitro-html-example@workspace:example":
   version: 0.0.0-use.local
-  resolution: "react-native-fast-html-parser-example@workspace:example"
+  resolution: "react-native-nitro-html-example@workspace:example"
   dependencies:
     "@babel/core": "npm:^7.25.2"
     "@babel/preset-env": "npm:^7.25.3"
@@ -7793,9 +7803,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"react-native-fast-html-parser@workspace:.":
+"react-native-nitro-html@workspace:.":
   version: 0.0.0-use.local
-  resolution: "react-native-fast-html-parser@workspace:."
+  resolution: "react-native-nitro-html@workspace:."
   dependencies:
     "@eslint/compat": "npm:^2.1.0"
     "@eslint/eslintrc": "npm:^3.3.5"
@@ -7825,16 +7835,6 @@ __metadata:
     react-native-nitro-modules: ^0.37.1
   languageName: unknown
   linkType: soft
-
-"react-native-monorepo-config@npm:^0.4.0":
-  version: 0.4.0
-  resolution: "react-native-monorepo-config@npm:0.4.0"
-  dependencies:
-    escape-string-regexp: "npm:^5.0.0"
-    fast-glob: "npm:^3.3.3"
-  checksum: 10c0/62e6e2ab859a2e0e5a4028b9f018043a803bfd35c62017a0ca834fc0ff389b5f9cca82c3bf5332d30644e9488e6144ebb0a94965c918d64fce5dbabe094163f8
-  languageName: node
-  linkType: hard
 
 "react-native-nitro-modules@npm:^0.37.1":
   version: 0.37.1

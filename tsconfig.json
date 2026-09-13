@@ -2,12 +2,12 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
-      "react-native-fast-html-parser": ["./src/index"]
+      "react-native-nitro-html": ["./src/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "customConditions": [
-      "react-native-fast-html-parser-source",
+      "react-native-nitro-html-source",
       "react-native-strict-api"
     ],
     "esModuleInterop": true,

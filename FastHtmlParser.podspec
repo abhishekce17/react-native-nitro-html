@@ -11,7 +11,7 @@ Pod::Spec.new do |s|
   s.authors      = package["author"]
 
   s.platforms    = { :ios => min_ios_version_supported }
-  s.source       = { :git => "https://github.com/abhishekce17/react-native-fast-html-parser.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/abhishekce17/react-native-nitro-html.git", :tag => "#{s.version}" }
 
   # ── Lexbor: download at pod install time (keeps npm package small) ───────────
   # Clones Lexbor source into cpp/lexbor/ during `pod install`.

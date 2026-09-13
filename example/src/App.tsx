@@ -1,5 +1,5 @@
 /**
- * react-native-fast-html-parser — Comprehensive Example App
+ * react-native-nitro-html — Comprehensive Example App
  *
  * Tabs:
  *  1. FastHtmlView       — Native Fabric RichText Engine with tagsStyles + Custom Renderer Injection
@@ -34,7 +34,7 @@ import {
   parseHTMLAsync,
   type ContentBlock,
   type ParsedArticle,
-} from 'react-native-fast-html-parser';
+} from 'react-native-nitro-html';
 
 // ─── Theme Mode & Palette System ─────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ export const darkTheme: AppTheme = {
 // ─── Shared HTML samples ─────────────────────────────────────────────────────
 
 const RICH_HTML = `
-<h1>⚡ react-native-fast-html-parser</h1>
+<h1>⚡ react-native-nitro-html</h1>
 <p>A high-performance HTML pipeline powered by a compiled <b>C++ (Lexbor)</b> core
 and direct <i>C++ JSI</i> via <a href="https://nitro.margelo.com">Nitro Modules</a>.</p>
 
@@ -156,14 +156,14 @@ and direct <i>C++ JSI</i> via <a href="https://nitro.margelo.com">Nitro Modules<
 <h2>Benchmark (100 KB payload)</h2>
 <table>
   <tr><th>Metric</th><th>Value</th></tr>
-  <tr><td>Parse time</td><td>0.353 ms</td></tr>
-  <tr><td>JSON serialization</td><td>0.128 ms</td></tr>
-  <tr><td>Throughput</td><td>204.48 MB/s</td></tr>
-  <tr><td>Blocks extracted</td><td>488 blocks</td></tr>
+  <tr><td>Parse time</td><td>0.377 ms</td></tr>
+  <tr><td>JSON serialization</td><td>0.269 ms</td></tr>
+  <tr><td>Throughput</td><td>151.27 MB/s</td></tr>
+  <tr><td>Blocks extracted</td><td>541 blocks</td></tr>
 </table>
 
 <h2>Quick Start</h2>
-<pre><code class="typescript">import { FastHtmlView } from 'react-native-fast-html-parser';
+<pre><code class="typescript">import { FastHtmlView } from 'react-native-nitro-html';
 
 export function ArticleScreen({ html }: { html: string }) {
   return &lt;FastHtmlView html={html} /&gt;;
@@ -355,7 +355,7 @@ const ALL_BLOCKS_HTML = `
 
 <h2>5. Block: CodeBlock (&lt;pre&gt; &amp; &lt;code&gt;)</h2>
 <pre><code class="language-typescript" data-lang="typescript" data-source="sample.ts">// TypeScript CodeBlock example with class &amp; data attributes
-import { FastHtmlView } from 'react-native-fast-html-parser';
+import { FastHtmlView } from 'react-native-nitro-html';
 
 export function DocumentViewer({ html }: { html: string }) {
   return (
@@ -550,7 +550,7 @@ const TYPOGRAPHY_HTML = `
 <p>Bake recipe: 1/2 cup sugar + 3/4 cup milk + 1 1/4 cups flour = 2 1/2 cups batter.</p>
 
 <p><b>C. Small Caps (<code>"smcp" 1</code>):</b></p>
-<p>react-native-fast-html-parser in small caps lettering.</p>
+<p>react-native-nitro-html in small caps lettering.</p>
 
 <p><b>D. Slashed Zero (<code>"zero" 1</code>):</b></p>
 <p>Serial ID: 0O0O-8800-ZZ00 (disambiguate zero 0 from letter O).</p>
@@ -1083,7 +1083,7 @@ const STYLING_TEST_HTML = `
 
 <h2>10. CodeBlock: &lt;pre&gt;&lt;code&gt; (Dark Slate Background Override)</h2>
 <pre><code class="language-typescript">// FastHtmlView with baseStyle and tagsStyles
-import { FastHtmlView } from 'react-native-fast-html-parser';
+import { FastHtmlView } from 'react-native-nitro-html';
 
 export function StyledArticle({ html }: { html: string }) {
   return (
@@ -2280,7 +2280,7 @@ export default function App() {
       <View style={[styles.header, { backgroundColor: theme.headerBg }]}>
         <View style={styles.headerTopRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>react-native-fast-html-parser</Text>
+            <Text style={styles.headerTitle}>react-native-nitro-html</Text>
             <Text style={[styles.headerSub, { color: theme.headerSub }]}>
               {blockCount} blocks · C++ (Lexbor) core · 100% Native FastHtmlView
             </Text>

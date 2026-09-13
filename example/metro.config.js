@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '..');
 const config = withMetroConfig(getDefaultConfig(__dirname), {
   root,
   dirname: __dirname,
-  conditions: ['react-native-fast-html-parser-source'],
+  conditions: ['react-native-nitro-html-source'],
 });
 
 module.exports = config;
