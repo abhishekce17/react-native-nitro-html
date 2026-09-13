@@ -132,7 +132,7 @@ static std::string applyTextTransform(const std::string& input, const std::strin
     return result;
 }
 
-static inline std::string trimSpacesOnly(const std::string& str) {
+static inline std::string_view trimSpacesOnly(std::string_view str) {
     size_t start = 0;
     while (start < str.size() && std::isspace(static_cast<unsigned char>(str[start]))) start++;
     size_t end = str.size();
@@ -140,7 +140,7 @@ static inline std::string trimSpacesOnly(const std::string& str) {
     return str.substr(start, end - start);
 }
 
-static inline std::string cleanQuotes(const std::string& str) {
+static inline std::string_view cleanQuotes(std::string_view str) {
     if (str.size() >= 2) {
         if ((str.front() == '\'' && str.back() == '\'') ||
             (str.front() == '"' && str.back() == '"')) {
@@ -150,44 +150,47 @@ static inline std::string cleanQuotes(const std::string& str) {
     return str;
 }
 
-static double parseCssDimension(const std::string& raw, double baseFontSize = 16.0) {
-    std::string val = trimSpacesOnly(raw);
+static double parseCssDimension(std::string_view raw, double baseFontSize = 16.0) {
+    std::string_view val = trimSpacesOnly(raw);
     if (val.empty()) return 0.0;
 
     size_t imp = val.find('!');
-    if (imp != std::string::npos) val = trimSpacesOnly(val.substr(0, imp));
+    if (imp != std::string_view::npos) val = trimSpacesOnly(val.substr(0, imp));
 
     try {
         if (val.size() > 2 && (val.rfind("px") == val.size() - 2 || val.rfind("PX") == val.size() - 2)) {
-            return std::stod(val.substr(0, val.size() - 2));
+            return std::stod(std::string(val.substr(0, val.size() - 2)));
         }
         if (val.size() > 2 && (val.rfind("pt") == val.size() - 2 || val.rfind("PT") == val.size() - 2)) {
-            return std::stod(val.substr(0, val.size() - 2)) * 1.333333;
+            return std::stod(std::string(val.substr(0, val.size() - 2))) * 1.333333;
         }
         if (val.size() > 2 && (val.rfind("em") == val.size() - 2 || val.rfind("EM") == val.size() - 2)) {
-            return std::stod(val.substr(0, val.size() - 2)) * baseFontSize;
+            return std::stod(std::string(val.substr(0, val.size() - 2))) * baseFontSize;
         }
         if (val.size() > 3 && (val.rfind("rem") == val.size() - 3 || val.rfind("REM") == val.size() - 3)) {
-            return std::stod(val.substr(0, val.size() - 3)) * 16.0;
+            return std::stod(std::string(val.substr(0, val.size() - 3))) * 16.0;
         }
         if (val.back() == '%') {
-            return (std::stod(val.substr(0, val.size() - 1)) / 100.0) * baseFontSize;
+            return (std::stod(std::string(val.substr(0, val.size() - 1))) / 100.0) * baseFontSize;
         }
-        return std::stod(val);
+        return std::stod(std::string(val));
     } catch (...) {
         return 0.0;
     }
 }
 
-static std::string parseCssColor(const std::string& raw) {
-    std::string val = trimSpacesOnly(raw);
+static std::string parseCssColor(std::string_view raw) {
+    std::string_view val = trimSpacesOnly(raw);
     if (val.empty()) return "";
 
     size_t imp = val.find('!');
-    if (imp != std::string::npos) val = trimSpacesOnly(val.substr(0, imp));
+    if (imp != std::string_view::npos) val = trimSpacesOnly(val.substr(0, imp));
 
-    std::string lower = val;
-    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    std::string lower;
+    lower.resize(val.size());
+    for (size_t i = 0; i < val.size(); ++i) {
+        lower[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(val[i])));
+    }
 
     // ── Complete Standard W3C CSS Named Colors (148 Colors) ─────────────────
     static const std::unordered_map<std::string, const char*> kNamedCssColors = {
@@ -368,29 +371,31 @@ static std::string parseCssColor(const std::string& raw) {
             full += val.substr(1, 6); // RRGGBB
             return full;
         }
-        return val;
+        return std::string(val);
     }
 
     // ── rgb(...) or rgba(...) ───────────────────────────────────────────────
     if (lower.rfind("rgb", 0) == 0) {
         size_t openP = val.find('(');
         size_t closeP = val.find(')');
-        if (openP != std::string::npos && closeP != std::string::npos && closeP > openP) {
-            std::string inside = val.substr(openP + 1, closeP - openP - 1);
-            std::vector<std::string> parts;
-            std::stringstream ss(inside);
-            std::string item;
-            while (std::getline(ss, item, ',')) {
-                parts.push_back(trimSpacesOnly(item));
+        if (openP != std::string_view::npos && closeP != std::string_view::npos && closeP > openP) {
+            std::string_view inside = val.substr(openP + 1, closeP - openP - 1);
+            std::vector<std::string_view> parts;
+            size_t pStart = 0;
+            while (pStart < inside.size()) {
+                size_t pComma = inside.find(',', pStart);
+                if (pComma == std::string_view::npos) pComma = inside.size();
+                parts.push_back(trimSpacesOnly(inside.substr(pStart, pComma - pStart)));
+                pStart = pComma + 1;
             }
             if (parts.size() >= 3) {
                 try {
-                    int r = std::clamp(std::stoi(parts[0]), 0, 255);
-                    int g = std::clamp(std::stoi(parts[1]), 0, 255);
-                    int b = std::clamp(std::stoi(parts[2]), 0, 255);
+                    int r = std::clamp(std::stoi(std::string(parts[0])), 0, 255);
+                    int g = std::clamp(std::stoi(std::string(parts[1])), 0, 255);
+                    int b = std::clamp(std::stoi(std::string(parts[2])), 0, 255);
                     char buf[12];
                     if (parts.size() >= 4) {
-                        double a = std::clamp(std::stod(parts[3]), 0.0, 1.0);
+                        double a = std::clamp(std::stod(std::string(parts[3])), 0.0, 1.0);
                         int aInt = static_cast<int>(a * 255.0);
                         snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", aInt, r, g, b);
                     } else {
@@ -406,26 +411,28 @@ static std::string parseCssColor(const std::string& raw) {
     if (lower.rfind("hsl", 0) == 0) {
         size_t openP = val.find('(');
         size_t closeP = val.find(')');
-        if (openP != std::string::npos && closeP != std::string::npos && closeP > openP) {
-            std::string inside = val.substr(openP + 1, closeP - openP - 1);
-            std::vector<std::string> parts;
-            std::stringstream ss(inside);
-            std::string item;
-            while (std::getline(ss, item, ',')) {
-                parts.push_back(trimSpacesOnly(item));
+        if (openP != std::string_view::npos && closeP != std::string_view::npos && closeP > openP) {
+            std::string_view inside = val.substr(openP + 1, closeP - openP - 1);
+            std::vector<std::string_view> parts;
+            size_t pStart = 0;
+            while (pStart < inside.size()) {
+                size_t pComma = inside.find(',', pStart);
+                if (pComma == std::string_view::npos) pComma = inside.size();
+                parts.push_back(trimSpacesOnly(inside.substr(pStart, pComma - pStart)));
+                pStart = pComma + 1;
             }
             if (parts.size() >= 3) {
                 try {
-                    double h = std::stod(parts[0]);
-                    std::string sStr = parts[1];
-                    if (!sStr.empty() && sStr.back() == '%') sStr.pop_back();
-                    double s = std::stod(sStr) / 100.0;
-                    std::string lStr = parts[2];
-                    if (!lStr.empty() && lStr.back() == '%') lStr.pop_back();
-                    double l = std::stod(lStr) / 100.0;
+                    double h = std::stod(std::string(parts[0]));
+                    std::string_view sView = parts[1];
+                    if (!sView.empty() && sView.back() == '%') sView.remove_suffix(1);
+                    double s = std::stod(std::string(sView)) / 100.0;
+                    std::string_view lView = parts[2];
+                    if (!lView.empty() && lView.back() == '%') lView.remove_suffix(1);
+                    double l = std::stod(std::string(lView)) / 100.0;
                     double a = 1.0;
                     if (parts.size() >= 4) {
-                        a = std::clamp(std::stod(parts[3]), 0.0, 1.0);
+                        a = std::clamp(std::stod(std::string(parts[3])), 0.0, 1.0);
                     }
 
                     auto hue2rgb = [](double p, double q, double t) {
@@ -464,115 +471,127 @@ static std::string parseCssColor(const std::string& raw) {
         }
     }
 
-    return val;
+    return std::string(val);
 }
 
-static std::string parseCssFontFamily(const std::string& raw) {
-    std::string val = trimSpacesOnly(raw);
+static std::string parseCssFontFamily(std::string_view raw) {
+    std::string_view val = trimSpacesOnly(raw);
     if (val.empty()) return "";
     size_t imp = val.find('!');
-    if (imp != std::string::npos) val = trimSpacesOnly(val.substr(0, imp));
+    if (imp != std::string_view::npos) val = trimSpacesOnly(val.substr(0, imp));
 
-    std::stringstream ss(val);
-    std::string item;
     std::string result;
-    while (std::getline(ss, item, ',')) {
-        std::string cleaned = cleanQuotes(trimSpacesOnly(item));
-        if (!cleaned.empty()) {
+    result.reserve(val.size());
+    size_t start = 0;
+    while (start < val.size()) {
+        size_t comma = val.find(',', start);
+        if (comma == std::string_view::npos) comma = val.size();
+        std::string_view item = cleanQuotes(trimSpacesOnly(val.substr(start, comma - start)));
+        if (!item.empty()) {
             if (!result.empty()) result += ", ";
-            result += cleaned;
+            result.append(item.data(), item.size());
         }
+        start = comma + 1;
     }
-    return result.empty() ? cleanQuotes(val) : result;
+    return result.empty() ? std::string(cleanQuotes(val)) : result;
 }
 
 static void parseInlineCss(
-    const std::string& styleAttr,
+    std::string_view styleAttr,
     NativeTextStyle& outStyle,
     double baseFontSize = 16.0
 ) {
     if (styleAttr.empty()) return;
 
-    std::stringstream ss(styleAttr);
-    std::string decl;
-    while (std::getline(ss, decl, ';')) {
-        decl = trimSpacesOnly(decl);
+    size_t start = 0;
+    while (start < styleAttr.size()) {
+        size_t semi = styleAttr.find(';', start);
+        if (semi == std::string_view::npos) semi = styleAttr.size();
+        std::string_view decl = trimSpacesOnly(styleAttr.substr(start, semi - start));
+        start = semi + 1;
         if (decl.empty()) continue;
 
         size_t colon = decl.find(':');
-        if (colon == std::string::npos) continue;
+        if (colon == std::string_view::npos) continue;
 
-        std::string prop = trimSpacesOnly(decl.substr(0, colon));
-        std::string val = trimSpacesOnly(decl.substr(colon + 1));
-        if (prop.empty() || val.empty()) continue;
+        std::string_view propView = trimSpacesOnly(decl.substr(0, colon));
+        std::string_view valView = trimSpacesOnly(decl.substr(colon + 1));
+        if (propView.empty() || valView.empty()) continue;
 
-        std::transform(prop.begin(), prop.end(), prop.begin(), ::tolower);
+        char propBuf[64];
+        size_t propLen = std::min(propView.size(), sizeof(propBuf) - 1);
+        for (size_t i = 0; i < propLen; ++i) {
+            propBuf[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(propView[i])));
+        }
+        std::string_view prop(propBuf, propLen);
 
         if (prop == "font-family") {
-            outStyle.fontFamily = parseCssFontFamily(val);
+            outStyle.fontFamily = parseCssFontFamily(valView);
         } else if (prop == "font-size") {
-            double sz = parseCssDimension(val, baseFontSize);
+            double sz = parseCssDimension(valView, baseFontSize);
             if (sz > 0) outStyle.fontSize = sz;
         } else if (prop == "font-weight") {
-            std::string w = trimSpacesOnly(val);
-            std::string lowerW = w;
-            std::transform(lowerW.begin(), lowerW.end(), lowerW.begin(), ::tolower);
+            std::string_view w = trimSpacesOnly(valView);
+            char wBuf[32];
+            size_t wLen = std::min(w.size(), sizeof(wBuf) - 1);
+            for (size_t i = 0; i < wLen; ++i) wBuf[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(w[i])));
+            std::string_view lowerW(wBuf, wLen);
             if (lowerW == "bold" || lowerW == "bolder") outStyle.fontWeight = "bold";
             else if (lowerW == "normal" || lowerW == "regular") outStyle.fontWeight = "normal";
-            else outStyle.fontWeight = w;
+            else outStyle.fontWeight = std::string(w);
         } else if (prop == "font-style") {
-            outStyle.fontStyle = trimSpacesOnly(val);
+            outStyle.fontStyle = std::string(trimSpacesOnly(valView));
         } else if (prop == "color") {
-            outStyle.color = parseCssColor(val);
+            outStyle.color = parseCssColor(valView);
         } else if (prop == "background-color" || prop == "background") {
-            outStyle.backgroundColor = parseCssColor(val);
+            outStyle.backgroundColor = parseCssColor(valView);
         } else if (prop == "line-height") {
-            double lh = parseCssDimension(val, baseFontSize);
+            double lh = parseCssDimension(valView, baseFontSize);
             if (lh > 0) outStyle.lineHeight = lh;
         } else if (prop == "letter-spacing") {
-            outStyle.letterSpacing = parseCssDimension(val, baseFontSize);
+            outStyle.letterSpacing = parseCssDimension(valView, baseFontSize);
         } else if (prop == "text-align") {
-            outStyle.textAlign = trimSpacesOnly(val);
+            outStyle.textAlign = std::string(trimSpacesOnly(valView));
         } else if (prop == "text-transform") {
-            outStyle.textTransform = trimSpacesOnly(val);
+            outStyle.textTransform = std::string(trimSpacesOnly(valView));
         } else if (prop == "text-decoration" || prop == "text-decoration-line") {
-            outStyle.textDecorationLine = trimSpacesOnly(val);
+            outStyle.textDecorationLine = std::string(trimSpacesOnly(valView));
         } else if (prop == "text-decoration-color") {
-            outStyle.textDecorationColor = parseCssColor(val);
+            outStyle.textDecorationColor = parseCssColor(valView);
         } else if (prop == "text-decoration-style") {
-            outStyle.textDecorationStyle = trimSpacesOnly(val);
+            outStyle.textDecorationStyle = std::string(trimSpacesOnly(valView));
         } else if (prop == "text-indent") {
-            outStyle.textIndent = parseCssDimension(val, baseFontSize);
+            outStyle.textIndent = parseCssDimension(valView, baseFontSize);
         } else if (prop == "opacity") {
-            try { outStyle.opacity = std::stod(val); } catch (...) {}
+            try { outStyle.opacity = std::stod(std::string(valView)); } catch (...) {}
         } else if (prop == "font-feature-settings") {
-            outStyle.fontFeatureSettings = trimSpacesOnly(val);
+            outStyle.fontFeatureSettings = std::string(trimSpacesOnly(valView));
         } else if (prop == "margin") {
-            outStyle.margin = parseCssDimension(val, baseFontSize);
+            outStyle.margin = parseCssDimension(valView, baseFontSize);
         } else if (prop == "margin-top") {
-            outStyle.marginTop = parseCssDimension(val, baseFontSize);
+            outStyle.marginTop = parseCssDimension(valView, baseFontSize);
         } else if (prop == "margin-bottom") {
-            outStyle.marginBottom = parseCssDimension(val, baseFontSize);
+            outStyle.marginBottom = parseCssDimension(valView, baseFontSize);
         } else if (prop == "margin-left") {
-            outStyle.marginLeft = parseCssDimension(val, baseFontSize);
+            outStyle.marginLeft = parseCssDimension(valView, baseFontSize);
         } else if (prop == "margin-right") {
-            outStyle.marginRight = parseCssDimension(val, baseFontSize);
+            outStyle.marginRight = parseCssDimension(valView, baseFontSize);
         } else if (prop == "padding") {
-            outStyle.padding = parseCssDimension(val, baseFontSize);
+            outStyle.padding = parseCssDimension(valView, baseFontSize);
         } else if (prop == "padding-top") {
-            outStyle.paddingTop = parseCssDimension(val, baseFontSize);
+            outStyle.paddingTop = parseCssDimension(valView, baseFontSize);
         } else if (prop == "padding-bottom") {
-            outStyle.paddingBottom = parseCssDimension(val, baseFontSize);
+            outStyle.paddingBottom = parseCssDimension(valView, baseFontSize);
         } else if (prop == "padding-left") {
-            outStyle.paddingLeft = parseCssDimension(val, baseFontSize);
+            outStyle.paddingLeft = parseCssDimension(valView, baseFontSize);
         } else if (prop == "padding-right") {
-            outStyle.paddingRight = parseCssDimension(val, baseFontSize);
+            outStyle.paddingRight = parseCssDimension(valView, baseFontSize);
         } else if (prop == "border-width" || prop == "border-left-width") {
-            outStyle.borderLeftWidth = parseCssDimension(val, baseFontSize);
+            outStyle.borderLeftWidth = parseCssDimension(valView, baseFontSize);
         } else if (prop == "border-color" || prop == "border-left-color") {
-            outStyle.borderLeftColor = parseCssColor(val);
+            outStyle.borderLeftColor = parseCssColor(valView);
         } else if (prop == "border-radius") {
-            outStyle.borderRadius = parseCssDimension(val, baseFontSize);
+            outStyle.borderRadius = parseCssDimension(valView, baseFontSize);
         }
     }
 }
@@ -583,11 +602,13 @@ static const NativeTextStyle* findTagStyle(
 ) {
     if (!tagsStyles.has_value()) return nullptr;
     const auto& map = tagsStyles.value();
-    std::string lowerTag = tag;
-    std::transform(lowerTag.begin(), lowerTag.end(), lowerTag.begin(), ::tolower);
-    auto it = map.find(lowerTag);
+    auto it = map.find(tag);
     if (it != map.end()) return &it->second;
-    it = map.find(tag);
+
+    std::string lowerTag;
+    lowerTag.resize(tag.size());
+    for (size_t i = 0; i < tag.size(); ++i) lowerTag[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(tag[i])));
+    it = map.find(lowerTag);
     if (it != map.end()) return &it->second;
     return nullptr;
 }

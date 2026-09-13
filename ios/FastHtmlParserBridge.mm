@@ -7,28 +7,61 @@ using namespace margelo::nitro::fasthtmlparser;
 
 @implementation FastHtmlParserBridge
 
+static NSCache<NSString *, UIColor *> *sColorCache = nil;
+static NSCache<NSString *, UIFont *> *sFontCache = nil;
+
 static UIColor* colorFromHexString(const std::string& hex) {
     if (hex.empty()) return nil;
-    NSString *cString = [[NSString stringWithUTF8String:hex.c_str()] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].uppercaseString;
-    if ([cString hasPrefix:@"#"]) {
-        cString = [cString substringFromIndex:1];
+
+    if (!sColorCache) {
+        sColorCache = [[NSCache alloc] init];
+        sColorCache.countLimit = 256;
     }
-    if (cString.length != 6 && cString.length != 8) return nil;
+
+    NSString *key = [NSString stringWithUTF8String:hex.c_str()];
+    UIColor *cached = [sColorCache objectForKey:key];
+    if (cached) return cached;
+
+    const char *str = hex.c_str();
+    while (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r') str++;
+    if (*str == '#') str++;
+
+    size_t len = strlen(str);
+    while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\t' || str[len - 1] == '\n' || str[len - 1] == '\r')) len--;
+
+    if (len != 6 && len != 8) return nil;
+
+    auto hexVal = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
 
     unsigned int rgbValue = 0;
-    [[NSScanner scannerWithString:cString] scanHexInt:&rgbValue];
-
-    if (cString.length == 6) {
-        return [UIColor colorWithRed:((rgbValue & 0xFF0000) >> 16) / 255.0
-                               green:((rgbValue & 0x00FF00) >> 8) / 255.0
-                                blue:(rgbValue & 0x0000FF) / 255.0
-                               alpha:1.0];
-    } else {
-        return [UIColor colorWithRed:((rgbValue & 0xFF000000) >> 24) / 255.0
-                               green:((rgbValue & 0x00FF0000) >> 16) / 255.0
-                                blue:((rgbValue & 0x0000FF00) >> 8) / 255.0
-                               alpha:(rgbValue & 0x000000FF) / 255.0];
+    for (size_t i = 0; i < len; ++i) {
+        int v = hexVal(str[i]);
+        if (v < 0) return nil;
+        rgbValue = (rgbValue << 4) | static_cast<unsigned int>(v);
     }
+
+    UIColor *color = nil;
+    if (len == 6) {
+        color = [UIColor colorWithRed:((rgbValue & 0xFF0000) >> 16) / 255.0
+                                green:((rgbValue & 0x00FF00) >> 8) / 255.0
+                                 blue:(rgbValue & 0x0000FF) / 255.0
+                                alpha:1.0];
+    } else {
+        color = [UIColor colorWithRed:((rgbValue & 0xFF000000) >> 24) / 255.0
+                                green:((rgbValue & 0x00FF0000) >> 16) / 255.0
+                                 blue:((rgbValue & 0x0000FF00) >> 8) / 255.0
+                                alpha:(rgbValue & 0x000000FF) / 255.0];
+    }
+
+    if (color) {
+        [sColorCache setObject:color forKey:key];
+    }
+    return color;
 }
 
 static NSString* cleanFontName(NSString *name) {
@@ -51,6 +84,16 @@ static UIFont* fontFromNodeProps(
     const std::string& fontFeatureSettings = ""
 ) {
     CGFloat ptSize = size > 0 ? static_cast<CGFloat>(size) : 16.0;
+
+    if (!sFontCache) {
+        sFontCache = [[NSCache alloc] init];
+        sFontCache.countLimit = 512;
+    }
+
+    NSString *cacheKey = [NSString stringWithFormat:@"%s|%.1f|%s|%s|%s",
+                          family.c_str(), ptSize, weight.c_str(), style.c_str(), fontFeatureSettings.c_str()];
+    UIFont *cachedFont = [sFontCache objectForKey:cacheKey];
+    if (cachedFont) return cachedFont;
     UIFontWeight uiWeight = UIFontWeightRegular;
     if (weight == "900" || weight == "black") {
         uiWeight = UIFontWeightBlack;
@@ -90,6 +133,13 @@ static UIFont* fontFromNodeProps(
             NSString *candLower = [cand lowercaseString];
             if ([candLower isEqualToString:@"monospace"]) {
                 baseFont = [UIFont monospacedSystemFontOfSize:ptSize weight:uiWeight];
+                if (traits != 0) {
+                    UIFontDescriptor *tDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:traits];
+                    if (tDesc) {
+                        UIFont *f = [UIFont fontWithDescriptor:tDesc size:ptSize];
+                        if (f) baseFont = f;
+                    }
+                }
                 break;
             } else if ([candLower isEqualToString:@"serif"]) {
                 if (@available(iOS 13.0, *)) {
@@ -104,13 +154,34 @@ static UIFont* fontFromNodeProps(
                 }
                 if (!baseFont) {
                     baseFont = [UIFont fontWithName:@"Georgia" size:ptSize];
+                    if (baseFont && traits != 0) {
+                        UIFontDescriptor *tDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:traits];
+                        if (tDesc) {
+                            UIFont *f = [UIFont fontWithDescriptor:tDesc size:ptSize];
+                            if (f) baseFont = f;
+                        }
+                    }
                 }
                 if (baseFont) break;
             } else if ([candLower isEqualToString:@"sans-serif"] || [candLower isEqualToString:@"system"] || [candLower isEqualToString:@"system-ui"] || [candLower isEqualToString:@"-apple-system"]) {
                 baseFont = [UIFont systemFontOfSize:ptSize weight:uiWeight];
+                if (traits != 0) {
+                    UIFontDescriptor *tDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:traits];
+                    if (tDesc) {
+                        UIFont *f = [UIFont fontWithDescriptor:tDesc size:ptSize];
+                        if (f) baseFont = f;
+                    }
+                }
                 break;
             } else if ([candLower isEqualToString:@"cursive"]) {
                 baseFont = [UIFont italicSystemFontOfSize:ptSize];
+                if (traits != 0) {
+                    UIFontDescriptor *tDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:traits];
+                    if (tDesc) {
+                        UIFont *f = [UIFont fontWithDescriptor:tDesc size:ptSize];
+                        if (f) baseFont = f;
+                    }
+                }
                 if (baseFont) break;
             } else {
                 // 1. Try direct PostScript / full font name
@@ -150,19 +221,12 @@ static UIFont* fontFromNodeProps(
     }
 
     if (!baseFont) {
-        if (style == "italic") {
-            baseFont = [UIFont italicSystemFontOfSize:ptSize];
-        } else {
-            baseFont = [UIFont systemFontOfSize:ptSize weight:uiWeight];
-        }
-    }
-
-    if (style == "italic" && baseFont) {
-        UIFontDescriptor *italicDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitItalic];
-        if (italicDesc) {
-            UIFont *italicFont = [UIFont fontWithDescriptor:italicDesc size:ptSize];
-            if (italicFont) {
-                baseFont = italicFont;
+        baseFont = [UIFont systemFontOfSize:ptSize weight:uiWeight];
+        if (traits != 0) {
+            UIFontDescriptor *tDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:traits];
+            if (tDesc) {
+                UIFont *f = [UIFont fontWithDescriptor:tDesc size:ptSize];
+                if (f) baseFont = f;
             }
         }
     }
@@ -233,6 +297,9 @@ static UIFont* fontFromNodeProps(
         }
     }
 
+    if (baseFont) {
+        [sFontCache setObject:baseFont forKey:cacheKey];
+    }
     return baseFont;
 }
 

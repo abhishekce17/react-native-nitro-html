@@ -82,6 +82,33 @@ class CustomTypefaceSpan(
 object SpannableHtmlEngine {
 
     private val typefaceCache = java.util.concurrent.ConcurrentHashMap<String, Typeface>()
+    private val colorCache = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    private var rfmInitialized = false
+    private var rfmInstance: Any? = null
+    private var rfmGetTypefaceMethod: java.lang.reflect.Method? = null
+
+    private fun getRfmTypeface(context: Context, name: String, styleInt: Int): Typeface? {
+        if (!rfmInitialized) {
+            try {
+                val rfmClass = Class.forName("com.facebook.react.views.text.ReactFontManager")
+                val getInstanceMethod = rfmClass.getMethod("getInstance")
+                rfmInstance = getInstanceMethod.invoke(null)
+                rfmGetTypefaceMethod = rfmClass.getMethod(
+                    "getTypeface",
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    android.content.res.AssetManager::class.java
+                )
+            } catch (_: Throwable) {}
+            rfmInitialized = true
+        }
+        return try {
+            rfmGetTypefaceMethod?.invoke(rfmInstance, name, styleInt, context.assets) as? Typeface
+        } catch (_: Throwable) {
+            null
+        }
+    }
 
     @JvmStatic
     fun resolveTypeface(context: Context?, family: String?, weight: String?, fontStyle: String?): Typeface {
@@ -114,26 +141,15 @@ object SpannableHtmlEngine {
                 "cursive" -> Typeface.create(Typeface.SERIF, Typeface.ITALIC)
                 "fantasy" -> Typeface.create(Typeface.SERIF, styleInt)
                 else -> {
-                    // 1. Resolve via React Native ReactFontManager (handles any custom font registered or placed in assets)
+                    // 1. Resolve via React Native ReactFontManager (cached reflection)
                     var loaded: Typeface? = null
                     var isCustomAsset = false
                     if (context != null) {
-                        try {
-                            val rfmClass = Class.forName("com.facebook.react.views.text.ReactFontManager")
-                            val getInstanceMethod = rfmClass.getMethod("getInstance")
-                            val instance = getInstanceMethod.invoke(null)
-                            val getTypefaceMethod = rfmClass.getMethod(
-                                "getTypeface",
-                                String::class.java,
-                                Int::class.javaPrimitiveType,
-                                android.content.res.AssetManager::class.java
-                            )
-                            val rfmResult = getTypefaceMethod.invoke(instance, cand, styleInt, context.assets) as? Typeface
-                            if (rfmResult != null && rfmResult != Typeface.DEFAULT && rfmResult != defaultForStyle) {
-                                loaded = rfmResult
-                                isCustomAsset = true
-                            }
-                        } catch (_: Throwable) {}
+                        val rfmResult = getRfmTypeface(context, cand, styleInt)
+                        if (rfmResult != null && rfmResult != Typeface.DEFAULT && rfmResult != defaultForStyle) {
+                            loaded = rfmResult
+                            isCustomAsset = true
+                        }
                     }
 
                     // 2. Direct asset search in fonts/ and root assets (including weight & style variant suffixes)
@@ -302,8 +318,11 @@ object SpannableHtmlEngine {
 
     private fun parseColor(hex: String?): Int? {
         if (hex.isNullOrEmpty()) return null
+        colorCache[hex]?.let { return it }
         return try {
-            Color.parseColor(hex)
+            val parsed = Color.parseColor(hex)
+            colorCache[hex] = parsed
+            parsed
         } catch (_: Exception) {
             null
         }
