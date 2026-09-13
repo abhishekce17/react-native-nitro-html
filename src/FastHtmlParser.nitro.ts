@@ -7,6 +7,16 @@ export interface InlineNode extends HybridObject<{
   readonly type: string;
   readonly text: string;
   readonly url: string;
+  readonly fontSize: number;
+  readonly color: string;
+  readonly backgroundColor: string;
+  readonly fontFamily: string;
+  readonly fontWeight: string;
+  readonly fontStyle: string;
+  readonly isUnderline: boolean;
+  readonly isStrikethrough: boolean;
+  readonly isLink: boolean;
+  readonly baselineShift: number;
   readonly childCount: number;
   getChild(index: number): InlineNode | null;
 }
@@ -47,6 +57,16 @@ export interface ContentBlock extends HybridObject<{
 }> {
   readonly type: string;
   readonly level: number;
+  readonly fontSize: number;
+  readonly color: string;
+  readonly backgroundColor: string;
+  readonly fontFamily: string;
+  readonly fontWeight: string;
+  readonly fontStyle: string;
+  readonly lineHeight: number;
+  readonly marginTop: number;
+  readonly marginBottom: number;
+  readonly paddingLeft: number;
   readonly url: string;
   readonly alt: string;
   readonly caption: string;
@@ -56,6 +76,7 @@ export interface ContentBlock extends HybridObject<{
   readonly src: string;
   readonly poster: string;
   readonly title: string;
+  readonly html: string;
 
   readonly childCount: number;
   getChild(index: number): InlineNode | null;
@@ -79,23 +100,28 @@ export interface ParsedArticle extends HybridObject<{
 }> {
   readonly length: number;
   getBlock(index: number): ContentBlock | null;
-  toJSON(): string;
-  toBuffer(): ArrayBuffer;
 }
 
 export interface FastHtmlParser extends HybridObject<{
   ios: 'c++';
   android: 'c++';
 }> {
-  // Fast sync height estimator — no full parse, called before parse() for Frame 0
-  estimateHeight(html: string, lineHeight: number): number;
-
   // Synchronous HTML parse — returns ParsedArticle directly via JSI
   parse(html: string): ParsedArticle | null;
 
   // Asynchronous HTML parse — dispatches to background thread and returns Promise
   parseAsync(html: string): Promise<ParsedArticle | null>;
 
-  // JSON serialization helper (useful for debugging/caching)
-  parseToJSON(html: string): string;
+  // Normalizes HTML via compiled C++ Lexbor into clean, standard markup with pre-formatted list bullets & quotes
+  normalizeHtml(html: string): string;
+
+  // Calculates estimated HTML height for Fabric Yoga pre-layout
+  calculateHtmlHeight(
+    html: string,
+    width: number,
+    baseFontSize: number,
+    baseLineHeight: number,
+    fontScale: number
+  ): number;
 }
+

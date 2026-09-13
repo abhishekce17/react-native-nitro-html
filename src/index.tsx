@@ -1,21 +1,11 @@
 export {
   parseHTML,
-  parseHTMLToJSON,
   parseHTMLAsync,
-  estimateHtmlHeight,
+  normalizeHTML,
+  calculateHTMLHeight,
 } from './parser';
 
-export {
-  FastHtmlView,
-  NativeHtmlView,
-  DefaultTableRenderer,
-  DefaultImageRenderer,
-  DefaultFigureRenderer,
-} from './renderer/FastHtmlView';
-export {
-  createCanonicalAdapter,
-  type CanonicalAdapterConfig,
-} from './adapters';
+export { FastHtmlView, NativeHtmlView } from './renderer/FastHtmlView';
 export * from './renderer/types';
 
 export {

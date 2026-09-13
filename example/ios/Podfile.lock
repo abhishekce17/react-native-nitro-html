@@ -1,5 +1,5 @@
 PODS:
-  - FastHtmlParser (2.0.0):
+  - FastHtmlParser (2.0.1):
     - hermes-engine
     - NitroModules
     - RCTRequired
@@ -2028,7 +2028,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  FastHtmlParser: 668016b8093bead6d1cdb6722af228c5e1470a0c
+  FastHtmlParser: 5401fc7d394daeee72acb1f178754192be6520cc
   FBLazyVector: c00c20551d40126351a6783c47ce75f5b374851b
   hermes-engine: e0f061c22e7a8ace2e49f8093fa5412928682bfc
   NitroModules: 38f8754287858ff1294e43fd43f614a664e54050

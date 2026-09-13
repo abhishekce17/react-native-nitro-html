@@ -18,10 +18,8 @@ import {
   Text,
   TouchableOpacity,
   View,
-  type TextStyle,
 } from 'react-native';
 import {
-  createCanonicalAdapter,
   getBlocks,
   getCells,
   getChildren,
@@ -33,11 +31,8 @@ import {
   FastHtmlView,
   parseHTML,
   parseHTMLAsync,
-  parseHTMLToJSON,
   type ContentBlock,
-  type CustomBlockRenderer,
   type ParsedArticle,
-  type ParsedArticleData,
 } from 'react-native-fast-html-parser';
 
 // ─── Shared HTML samples ─────────────────────────────────────────────────────
@@ -140,10 +135,205 @@ ${i % 7 === 0 ? `<ul><li>Item A in section ${i + 1}</li><li>Item B</li></ul>` : 
 `
 ).join('');
 
+// Comprehensive showcase HTML covering every block type, inline element,
+// malformed HTML resiliency, props, standard attributes, and custom attributes.
+const ALL_BLOCKS_HTML = `
+<h1>📦 Comprehensive HTML Content Blocks Showcase</h1>
+<p>This test suite contains every supported and normalized content block type rendered with 100% pure raw HTML — zero CSS injection.</p>
+
+<h2>1. Block: Heading (&lt;h1&gt; to &lt;h6&gt;)</h2>
+<p>Headings with standard <code>id</code>, <code>class</code>, and <code>data-*</code> attributes:</p>
+<h1 id="heading-h1" class="editorial-title" data-level="1">Heading Level 1 (&lt;h1&gt;)</h1>
+<h2 id="heading-h2" class="section-title" data-level="2">Heading Level 2 (&lt;h2&gt;)</h2>
+<h3 id="heading-h3" class="subsection-title" data-level="3">Heading Level 3 (&lt;h3&gt;)</h3>
+<h4 id="heading-h4" data-level="4">Heading Level 4 (&lt;h4&gt;)</h4>
+<h5 id="heading-h5" data-level="5">Heading Level 5 (&lt;h5&gt;)</h5>
+<h6 id="heading-h6" data-level="6">Heading Level 6 (&lt;h6&gt;)</h6>
+
+<h2>2. Block: Paragraph &amp; Inline Typography</h2>
+<p id="main-para" class="body-text" data-testid="para-sample" aria-label="Paragraph sample">
+  This is a standard paragraph demonstrating all inline phrasing tags:
+  <b>bold (&lt;b&gt;)</b>, <strong>strong (&lt;strong&gt;)</strong>,
+  <i>italic (&lt;i&gt;)</i>, <em>emphasis (&lt;em&gt;)</em>,
+  <u>underline (&lt;u&gt;)</u>, <ins>inserted (&lt;ins&gt;)</ins>,
+  <s>strikethrough (&lt;s&gt;)</s>, <del>deleted (&lt;del&gt;)</del>,
+  <code>inline code (&lt;code&gt;)</code>, <mark>mark highlight (&lt;mark&gt;)</mark>,
+  <sub>subscript (&lt;sub&gt;: H<sub>2</sub>O)</sub>,
+  <sup>superscript (&lt;sup&gt;: E=mc<sup>2</sup>)</sup>, and a link:
+  <a href="https://nitro.margelo.com" target="_blank" rel="noopener" data-track="link_click">Nitro Modules Link (&lt;a&gt;)</a>.<br />
+  A manual line break (&lt;br /&gt;) splits this line.
+</p>
+
+<h2>3. Block: Blockquote &amp; Nested Quotes</h2>
+<blockquote cite="https://example.com" class="featured-quote" data-author="Lexbor Core" aria-label="Core Architecture Quote">
+  <p><b>"Zero-copy C++ JSI direct memory access delivers sub-millisecond parsing on mobile devices."</b></p>
+  <p>— Fast HTML Architecture Whitepaper</p>
+  <blockquote>
+    <p>Nested quote level 2: <i>"Inner quotes maintain correct hierarchy and margin indentation."</i></p>
+  </blockquote>
+</blockquote>
+
+<h2>4. Block: Lists (Unordered, Ordered &amp; Nested)</h2>
+<p><b>Unordered List (&lt;ul&gt; &amp; &lt;li&gt;):</b></p>
+<ul class="feature-list" data-list="unordered" role="list">
+  <li id="li-1" data-index="0">First bullet item with plain text</li>
+  <li id="li-2" data-index="1">Second bullet item with <b>bold text</b> and <a href="https://github.com">link</a></li>
+  <li id="li-3" data-index="2">
+    Third bullet item containing a nested list:
+    <ul class="nested-list">
+      <li>Nested sub-item A</li>
+      <li>Nested sub-item B with <code>nested code</code></li>
+    </ul>
+  </li>
+</ul>
+
+<p><b>Ordered List (&lt;ol&gt; &amp; &lt;li&gt;):</b></p>
+<ol start="1" type="1" class="step-list" data-list="ordered">
+  <li data-step="1">Step 1: HTML string passed to native parser</li>
+  <li data-step="2">Step 2: C++ Lexbor engine normalizes DOM tree</li>
+  <li data-step="3">Step 3: Fabric view renders native text fragments</li>
+</ol>
+
+<h2>5. Block: CodeBlock (&lt;pre&gt; &amp; &lt;code&gt;)</h2>
+<pre><code class="language-typescript" data-lang="typescript" data-source="sample.ts">// TypeScript CodeBlock example with class &amp; data attributes
+import { FastHtmlView } from 'react-native-fast-html-parser';
+
+export function DocumentViewer({ html }: { html: string }) {
+  return (
+    &lt;FastHtmlView
+      html={html}
+      onLinkPress={(url) =&gt; console.log(url)}
+    /&gt;
+  );
+}</code></pre>
+
+<h2>6. Block: 2D Data Table (&lt;table&gt;)</h2>
+<table border="1" cellpadding="8" cellspacing="0" class="performance-table" data-table="benchmarks" aria-label="Benchmark Table">
+  <thead>
+    <tr>
+      <th scope="col" data-col="engine">Engine Layer</th>
+      <th scope="col" data-col="tech">Technology</th>
+      <th scope="col" data-col="time">Parse Time</th>
+      <th scope="col" data-col="fps">Framerate</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Parser Core</b></td>
+      <td>Lexbor (Compiled C++)</td>
+      <td><code>0.08 ms</code></td>
+      <td>120 FPS</td>
+    </tr>
+    <tr>
+      <td><b>Bridge Layer</b></td>
+      <td>Nitro Modules (Direct JSI)</td>
+      <td><code>0.01 ms</code></td>
+      <td>120 FPS</td>
+    </tr>
+    <tr>
+      <td><b>Native View</b></td>
+      <td>TextKit 2 / Spannables</td>
+      <td><code>0.35 ms</code></td>
+      <td>120 FPS</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>7. Block: Definition List (&lt;dl&gt;, &lt;dt&gt;, &lt;dd&gt;)</h2>
+<dl class="glossary" data-section="glossary">
+  <dt id="term-jsi"><b>JSI</b></dt>
+  <dd data-def-for="jsi">JavaScript Interface — direct C++ to JavaScript engine bridge without serialization.</dd>
+  <dt id="term-nitro"><b>Nitro Modules</b></dt>
+  <dd data-def-for="nitro">Next-generation native modules architecture offering direct C++ type bindings.</dd>
+  <dt id="term-lexbor"><b>Lexbor</b></dt>
+  <dd data-def-for="lexbor">High-performance thread-safe C HTML5 parser and layout engine.</dd>
+</dl>
+
+<h2>8. Block: Media, Image &amp; Figure (&lt;img&gt;, &lt;figure&gt;, &lt;figcaption&gt;)</h2>
+<p><b>Standard Image with attributes:</b></p>
+<img src="https://picsum.photos/seed/block-demo/600/200" alt="Sample landscape" width="100%" class="banner-image" data-zoomable="true" />
+
+<p><b>Figure with Caption:</b></p>
+<figure class="article-figure" data-figure-id="fig-1">
+  <img src="https://picsum.photos/seed/figure-demo/600/200" alt="Figure demonstration" width="100%" />
+  <figcaption><i>Figure 1: Visual representation of native zero-copy HTML rendering pipeline.</i></figcaption>
+</figure>
+
+<h2>9. Block: Horizontal Separator (&lt;hr&gt;)</h2>
+<p>Content block above the horizontal separator line.</p>
+<hr class="section-divider" data-divider-style="solid" />
+<p>Content block below the horizontal separator line.</p>
+
+<h2>10. Malformed HTML Recovery &amp; Resiliency</h2>
+<p><b>A. Unclosed Tags (Auto-closed by Parser):</b></p>
+<p>This paragraph contains an <b>unclosed bold tag and an <i>unclosed italic tag without closing tags.</i></b></p>
+
+<p><b>B. Mismatched Nesting Order:</b></p>
+<p><b><i>Mismatched tags order (b &gt; i &gt; /b &gt; /i)</b></i> normalized seamlessly.</p>
+
+<p><b>C. Stray / Orphan Closing Tags:</b></p>
+<p>Parser recovered cleanly after stray closing tags.</p>
+
+<p><b>D. Malformed Attribute Quotes:</b></p>
+<p><a href="https://example.com/broken" class="unclosed-attr">Link with malformed attributes</a></p>
+
+<p><b>E. Unclosed List &amp; Table Rows:</b></p>
+<ul><li>Item 1 without closing li tag<li>Item 2 without closing li tag</ul>
+
+<h2>11. Props, Standard Attributes &amp; Custom Attributes</h2>
+<p>Elements with <code>id</code>, <code>class</code>, <code>style</code>, <code>data-*</code>, <code>aria-*</code>, <code>role</code>, and custom tags:</p>
+
+<custom-banner id="promo-banner" class="highlight-banner" data-campaign="2026-launch" data-discount="40%" aria-live="polite" role="region">
+  <p><b>&lt;custom-banner&gt;</b> custom tag with <code>data-campaign="2026-launch"</code> and <code>data-discount="40%"</code>.</p>
+</custom-banner>
+
+<user-card user-id="usr_8821" role="author" data-verified="true" data-role="contributor" style="padding: 8px;">
+  <p><b>&lt;user-card&gt;</b> custom component tag with attributes <code>user-id="usr_8821"</code> and <code>data-verified="true"</code>.</p>
+</user-card>
+
+<h2>12. HTML5 Entities &amp; Special Characters</h2>
+<p>
+  <b>Named Entities:</b> &ldquo;Quotes&rdquo;, &lsquo;Single&rsquo;, &mdash; (em-dash), &ndash; (en-dash), &hellip; (ellipsis), &copy; 2026, &reg;, &trade;<br />
+  <b>Currency &amp; Math:</b> &dollar;1,250.00 &euro;850.00 &pound;720.00 &yen;120,000 | &infin; &Delta; &pi; &plusmn; &times; &divide;<br />
+  <b>Symbols &amp; Unicode:</b> &hearts; &#9733; &#9734; &#x1F680; &#x1F525; &#x2705; &#x26A1;
+</p>
+`;
+
+// ─── Custom Renderers Sample HTML ────────────────────────────────────────────
+
+const CUSTOM_HTML = `
+<h1>⚡ Custom Component Injection</h1>
+<p>Standard HTML blocks render 100% natively, while custom renderers intercept specific block types (like interactive CodeBlocks, Video Players, or custom Web Components) without breaking surrounding native layout!</p>
+
+<hr />
+<h2>1. Custom Interactive CodeBlock</h2>
+<pre><code class="language-typescript">// TypeScript Native Module Example
+import { NitroModules } from 'react-native-nitro-modules';
+
+export const parser = NitroModules.createHybridObject('FastHtmlParser');
+const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></pre>
+
+<hr />
+<h2>2. Custom Video Player Component</h2>
+<video src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" poster="https://picsum.photos/600/300" title="Big Buck Bunny Demo"></video>
+
+<hr />
+<h2>3. Custom Interactive Poll Widget (&lt;custom-poll&gt;)</h2>
+<custom-poll title="Which engine performs best?" id="poll-01">
+  <p>Vote for your favorite React Native HTML architecture:</p>
+</custom-poll>
+
+<hr />
+<h2>4. Native Content Immediately Following Custom Components</h2>
+<p>This paragraph is placed directly below the custom React components and continues rendering seamlessly through the high-performance native host view with continuous text selection support!</p>
+`;
+
 // ─── Tab navigation ──────────────────────────────────────────────────────────
 
 const TABS = [
+  'All Blocks',
   'FastHtmlView',
+  'Custom Renderers',
   'New Features',
   'Infinite Scale',
   'Wrappers',
@@ -151,54 +341,184 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number];
 
-// ─── Custom block renderers ───────────────────────────────────────────────────
+// ─── Tab 0: All Blocks Showcase ──────────────────────────────────────────────
 
-const CustomCodeBlock: CustomBlockRenderer = ({ block }) => (
-  <View style={styles.customCode}>
-    {block.language ? (
-      <View style={styles.codeBadge}>
-        <Text style={styles.codeBadgeText}>{block.language.toUpperCase()}</Text>
-      </View>
-    ) : null}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      <Text style={styles.codeText}>{block.code}</Text>
-    </ScrollView>
-  </View>
-);
-
-// ─── Tab 1: FastHtmlView ─────────────────────────────────────────────────────
-
-function RenderedTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
+function AllBlocksTab() {
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
       <Text style={styles.sectionLabel}>
-        Using &lt;FastHtmlView parsedAst=&#123;…&#125; /&gt;
+        All HTML Content Blocks &amp; Tags Showcase
       </Text>
       <Text style={styles.sectionHint}>
-        100% Native Fabric Text Rendering, continuous selection, custom
-        CodeBlock injector, tagsStyles.
+        Every block type, inline typography, malformed HTML resiliency, props,
+        standard &amp; custom attributes rendered 100% natively with pure raw
+        HTML.
       </Text>
       <View style={styles.card}>
         <FastHtmlView
-          parsedAst={parsedAst}
-          baseStyle={styles.htmlBaseStyle}
-          tagsStyles={{
-            h1: {
-              fontSize: 24,
-              color: '#7c3aed',
-              fontWeight: '800',
-            } as TextStyle,
-            h2: {
-              fontSize: 18,
-              color: '#1e40af',
-              fontWeight: '700',
-            } as TextStyle,
-            a: { color: '#2563eb' } as TextStyle,
-            blockquote: {
-              backgroundColor: 'rgba(124, 58, 237, 0.05)',
-            } as TextStyle,
+          html={ALL_BLOCKS_HTML}
+          onLinkPress={(url: string) => Alert.alert('Link Clicked', url)}
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+// ─── Tab 1: FastHtmlView ─────────────────────────────────────────────────────
+
+function RenderedTab() {
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent}>
+      <Text style={styles.sectionLabel}>
+        Using &lt;FastHtmlView html=&#123;RICH_HTML&#125; /&gt;
+      </Text>
+      <Text style={styles.sectionHint}>
+        Pure raw HTML passed directly to NativeHtmlView with zero custom styles
+        or CSS.
+      </Text>
+      <View style={styles.card}>
+        <FastHtmlView
+          html={RICH_HTML}
+          onLinkPress={(url: string) => Alert.alert('onLinkPress', url)}
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+// ─── Tab: Custom Renderers ───────────────────────────────────────────────────
+
+function CustomRenderersTab() {
+  const [pollVotes, setPollVotes] = useState<Record<string, number>>({
+    'Compiled C++ (Lexbor)': 42,
+    '100% Native Fabric View': 38,
+    'Zero-Hook JS Facade': 29,
+  });
+  const [selectedVote, setSelectedVote] = useState<string | null>(null);
+
+  const handleVote = (option: string) => {
+    if (selectedVote === option) return;
+    setPollVotes((prev) => ({
+      ...prev,
+      [option]: (prev[option] ?? 0) + 1,
+      ...(selectedVote
+        ? { [selectedVote]: Math.max(0, (prev[selectedVote] ?? 1) - 1) }
+        : {}),
+    }));
+    setSelectedVote(option);
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent}>
+      <Text style={styles.sectionLabel}>
+        Custom Component Renderer Injection
+      </Text>
+      <Text style={styles.sectionHint}>
+        Demonstrating custom interactive CodeBlocks, Video Players, and custom
+        widget elements injected directly into the native rendering stream.
+      </Text>
+      <View style={styles.card}>
+        <FastHtmlView
+          html={CUSTOM_HTML}
+          renderers={{
+            'CodeBlock': ({ block }: { block: ContentBlock }) => (
+              <View style={styles.customCodeBox}>
+                <View style={styles.customCodeHeader}>
+                  <View style={styles.customCodeBadge}>
+                    <Text style={styles.customCodeBadgeText}>
+                      {(block.language || 'typescript').toUpperCase()}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.customCodeCopyBtn}
+                    onPress={() =>
+                      Alert.alert('Copied to Clipboard!', block.code)
+                    }
+                  >
+                    <Text style={styles.customCodeCopyText}>📋 Copy Code</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <Text style={styles.customCodeText}>{block.code}</Text>
+                </ScrollView>
+              </View>
+            ),
+            'Video': ({ block }: { block: ContentBlock }) => (
+              <View style={styles.customVideoContainer}>
+                <View style={styles.customVideoHeader}>
+                  <Text style={styles.customVideoTitle}>
+                    🎬 {block.title || 'Featured Video'}
+                  </Text>
+                  <Text style={styles.customVideoPill}>HD 1080p</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.customVideoPlaceholder}
+                  onPress={() =>
+                    Alert.alert('Playback Triggered', `Source: ${block.src}`)
+                  }
+                >
+                  <View style={styles.customVideoPlayIcon}>
+                    <Text style={styles.customVideoPlayText}>▶</Text>
+                  </View>
+                  <Text style={styles.customVideoPlayLabel}>
+                    Tap to Stream Video
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.customVideoSrcText} numberOfLines={1}>
+                  {block.src}
+                </Text>
+              </View>
+            ),
+            'custom-poll': ({ block }: { block: ContentBlock }) => (
+              <View style={styles.customPollContainer}>
+                <Text style={styles.customPollTitle}>
+                  📊 {block.title || 'Community Poll'}
+                </Text>
+                {Object.entries(pollVotes).map(([option, count]) => {
+                  const isSelected = selectedVote === option;
+                  const total = Object.values(pollVotes).reduce(
+                    (a, b) => a + b,
+                    0
+                  );
+                  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                  return (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.customPollOption,
+                        isSelected && styles.customPollOptionSelected,
+                      ]}
+                      onPress={() => handleVote(option)}
+                    >
+                      <View
+                        style={[
+                          styles.customPollBar,
+                          { width: `${pct}%` },
+                          isSelected && styles.customPollBarSelected,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.customPollText,
+                          isSelected && styles.customPollTextSelected,
+                        ]}
+                      >
+                        {option}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.customPollCount,
+                          isSelected && styles.customPollCountSelected,
+                        ]}
+                      >
+                        {pct}% ({count})
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ),
           }}
-          renderers={{ CodeBlock: CustomCodeBlock }}
           onLinkPress={(url: string) => Alert.alert('onLinkPress', url)}
         />
       </View>
@@ -208,13 +528,16 @@ function RenderedTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
 
 // ─── Tab 2: New Features (All 11 Optimizations) ──────────────────────────────
 
-function NewFeaturesTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
+function NewFeaturesTab({
+  parsedAst: _parsedAst,
+}: {
+  parsedAst: ParsedArticle | null;
+}) {
   const [themeMode, setThemeMode] = useState<'auto' | 'light' | 'dark'>('auto');
   const [fontFeature, setFontFeature] = useState<
     'normal' | 'tnum' | 'frac' | 'smcp'
   >('tnum');
   const [asyncTime, setAsyncTime] = useState<number | null>(null);
-  const [bufferSize, setBufferSize] = useState<number | null>(null);
 
   const handleAsyncParse = useCallback(async () => {
     const t0 = performance.now();
@@ -226,21 +549,6 @@ function NewFeaturesTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
       `Parsed in ${elapsed.toFixed(3)} ms on Nitro background thread.\nBlocks extracted: ${getBlocks(result).length}`
     );
   }, []);
-
-  const handleExportBuffer = useCallback(() => {
-    if (!parsedAst) return;
-    const buf = parsedAst.toBuffer();
-    setBufferSize(buf.byteLength);
-    Alert.alert(
-      'Binary AST Buffer Exported',
-      `Serialized to zero-copy ArrayBuffer: ${buf.byteLength} bytes.`
-    );
-  }, [parsedAst]);
-
-  const dynamicBaseStyle = useMemo(
-    () => ({ color: themeMode === 'dark' ? '#f8fafc' : '#1e293b' }),
-    [themeMode]
-  );
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
@@ -309,15 +617,6 @@ function NewFeaturesTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
               {asyncTime != null ? ` (${asyncTime.toFixed(2)}ms)` : ''}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnSecondary]}
-            onPress={handleExportBuffer}
-          >
-            <Text style={styles.actionBtnText}>
-              📦 toBuffer()
-              {bufferSize != null ? ` (${bufferSize} B)` : ''}
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -327,17 +626,6 @@ function NewFeaturesTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
       >
         <FastHtmlView
           html={NEW_FEATURES_HTML}
-          themeMode={themeMode}
-          baseStyle={dynamicBaseStyle}
-          fontFeatureSettings={
-            fontFeature === 'normal' ? undefined : `"${fontFeature}" 1`
-          }
-          tagsStyles={{
-            table: { marginVertical: 8 },
-            th: {
-              backgroundColor: themeMode === 'dark' ? '#334155' : '#e2e8f0',
-            },
-          }}
           onLinkPress={(url: string) => Alert.alert('Link Press', url)}
         />
       </View>
@@ -361,12 +649,6 @@ function InfiniteScaleTab() {
       <View style={styles.card}>
         <FastHtmlView
           html={LONG_HTML}
-          baseStyle={styles.virtualBaseStyle}
-          tagsStyles={{
-            h2: { color: '#0369a1', fontWeight: '700' } as TextStyle,
-            h3: { color: '#0891b2', fontWeight: '600' } as TextStyle,
-            h4: { color: '#0e7490' } as TextStyle,
-          }}
           onLinkPress={(url: string) => Alert.alert('Link Clicked', url)}
         />
       </View>
@@ -502,101 +784,36 @@ function WrappersTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
   );
 }
 
-// ─── Tab 4: JSON Pipeline ─────────────────────────────────────────────────────
+// ─── Tab 4: AST JSON Tree ───────────────────────────────────────────────────
 
 function JsonTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
-  const [mode, setMode] = useState<'parseHTMLToJSON' | 'toJSON' | 'adapter'>(
-    'parseHTMLToJSON'
-  );
+  const blocks = useMemo(() => getBlocks(parsedAst), [parsedAst]);
 
-  // parseHTMLToJSON — 1-pass Rust pipeline
-  const directJson = useMemo(() => parseHTMLToJSON(RICH_HTML), []);
-
-  // article.toJSON() — serialize existing HybridObject
-  const articleJson = useMemo(() => {
-    if (!parsedAst) return '';
-    return parsedAst.toJSON();
-  }, [parsedAst]);
-
-  // createCanonicalAdapter — domain schema mapping
-  const adapter = useMemo(
-    () =>
-      createCanonicalAdapter<
-        { totalBlocks: number; headings: string[]; sections: any[] },
-        { kind: string; summary: string }
-      >({
-        transformers: {
-          heading: (block, _i) => ({
-            kind: 'heading',
-            summary: `H${(block as any).level}: ${(block as any).children?.map((c: any) => c.text).join('') ?? ''}`,
-          }),
-          paragraph: (block, _i) => ({
-            kind: 'paragraph',
-            summary: `${(block as any).children
-              ?.map((c: any) => c.text)
-              .join('')
-              .slice(0, 60)}…`,
-          }),
-        },
-        transformBlock: (block) => ({ kind: block.type, summary: block.type }),
-        transformArticle: (_article, domainBlocks) => ({
-          totalBlocks: domainBlocks.length,
-          headings: domainBlocks
-            .filter((b) => b.kind === 'heading')
-            .map((b) => b.summary),
-          sections: domainBlocks,
-        }),
-      }),
-    []
-  );
-
-  const adapterOutput = useMemo(() => {
-    const parsed: ParsedArticleData = JSON.parse(directJson);
-    return JSON.stringify(adapter.adapt(parsed), null, 2);
-  }, [directJson, adapter]);
-
-  const displayJson =
-    mode === 'parseHTMLToJSON'
-      ? directJson
-      : mode === 'toJSON'
-        ? articleJson
-        : adapterOutput;
+  const displayJson = useMemo(() => {
+    const rawData = {
+      totalBlocks: blocks.length,
+      blocks: blocks.map((b) => ({
+        type: b.type,
+        level: b.level > 0 ? b.level : undefined,
+        url: b.url || undefined,
+        code: b.code || undefined,
+        language: b.language || undefined,
+        children: getChildren(b).map((c) => ({
+          type: c.type,
+          text: c.text || undefined,
+          url: c.url || undefined,
+        })),
+      })),
+    };
+    return JSON.stringify(rawData, null, 2);
+  }, [blocks]);
 
   return (
     <View style={styles.jsonTab}>
-      {/* Mode switcher */}
-      <View style={styles.jsonModeRow}>
-        {(
-          [
-            ['parseHTMLToJSON', '1-Pass JSON'],
-            ['toJSON', 'article.toJSON()'],
-            ['adapter', 'Adapter'],
-          ] as const
-        ).map(([key, label]) => (
-          <TouchableOpacity
-            key={key}
-            style={[styles.modeBtn, mode === key && styles.activeModeBtn]}
-            onPress={() => setMode(key)}
-          >
-            <Text
-              style={[
-                styles.modeBtnText,
-                mode === key && styles.activeModeBtnText,
-              ]}
-            >
-              {label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       {/* Description */}
       <Text style={styles.jsonDesc}>
-        {mode === 'parseHTMLToJSON'
-          ? 'parseHTMLToJSON(html) — 1-pass C++ Lexbor serialization. Native memory freed instantly. Best for MMKV/SQLite caching.'
-          : mode === 'toJSON'
-            ? 'article.toJSON() — serializes an existing ParsedArticle HybridObject. Use when you rendered first and then want to cache.'
-            : 'createCanonicalAdapter() — maps parser blocks to your domain schema (headings extracted, paragraph summaries, etc).'}
+        Inspecting parsed AST blocks and inline nodes extracted natively by C++
+        (Lexbor).
       </Text>
 
       {/* JSON output */}
@@ -613,7 +830,7 @@ function JsonTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
 // ─── Root App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('FastHtmlView');
+  const [activeTab, setActiveTab] = useState<Tab>('All Blocks');
 
   // Parse once — shared across tabs
   const parsedAst = useMemo(() => parseHTML(RICH_HTML), []);
@@ -657,7 +874,9 @@ export default function App() {
 
       {/* Active tab */}
       <View style={styles.tabBody}>
-        {activeTab === 'FastHtmlView' && <RenderedTab parsedAst={parsedAst} />}
+        {activeTab === 'All Blocks' && <AllBlocksTab />}
+        {activeTab === 'FastHtmlView' && <RenderedTab />}
+        {activeTab === 'Custom Renderers' && <CustomRenderersTab />}
         {activeTab === 'New Features' && (
           <NewFeaturesTab parsedAst={parsedAst} />
         )}
@@ -758,31 +977,179 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  // Custom CodeBlock renderer
-  customCode: {
+  // ─── Custom Renderers Styles ───────────────────────────────────────────────
+  customCodeBox: {
     backgroundColor: '#0f172a',
-    borderRadius: 8,
-    padding: 12,
-    marginVertical: 8,
+    borderRadius: 10,
+    padding: 14,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
-  codeBadge: {
-    alignSelf: 'flex-start',
+  customCodeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  customCodeBadge: {
     backgroundColor: '#1e293b',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginBottom: 8,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#38bdf840',
   },
-  codeBadgeText: {
+  customCodeBadgeText: {
     color: '#38bdf8',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
+    fontFamily: 'Courier',
   },
-  codeText: {
+  customCodeCopyBtn: {
+    backgroundColor: '#334155',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  customCodeCopyText: {
+    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  customCodeText: {
     fontFamily: 'Courier',
     color: '#f8fafc',
     fontSize: 12,
     lineHeight: 18,
+  },
+
+  customVideoContainer: {
+    backgroundColor: '#18181b',
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#27272a',
+  },
+  customVideoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  customVideoTitle: {
+    color: '#fafafa',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  customVideoPill: {
+    backgroundColor: '#7c3aed',
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  customVideoPlaceholder: {
+    height: 140,
+    backgroundColor: '#09090b',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3f3f46',
+    marginVertical: 4,
+  },
+  customVideoPlayIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#7c3aed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  customVideoPlayText: {
+    color: '#ffffff',
+    fontSize: 18,
+    marginLeft: 3,
+  },
+  customVideoPlayLabel: {
+    color: '#a1a1aa',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  customVideoSrcText: {
+    color: '#71717a',
+    fontSize: 10,
+    fontFamily: 'Courier',
+    marginTop: 8,
+  },
+
+  customPollContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  customPollTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  customPollOption: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  customPollOptionSelected: {
+    borderColor: '#7c3aed',
+    backgroundColor: '#faf5ff',
+  },
+  customPollBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#f1f5f9',
+  },
+  customPollBarSelected: {
+    backgroundColor: '#ede9fe',
+  },
+  customPollText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    zIndex: 1,
+  },
+  customPollTextSelected: {
+    color: '#7c3aed',
+    fontWeight: '700',
+  },
+  customPollCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    zIndex: 1,
+  },
+  customPollCountSelected: {
+    color: '#7c3aed',
+    fontWeight: '700',
   },
 
   // Virtualized / Infinite Scale tab

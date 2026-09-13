@@ -10,12 +10,15 @@
 #include "HybridDefinitionItemSpec.hpp"
 
 #include <NitroModules/Null.hpp>
-#include <NitroModules/ArrayBuffer.hpp>
 #include <NitroModules/Promise.hpp>
+#include "NativeTextStyle.hpp"
 #include <memory>
 #include <string>
 #include <variant>
 #include <vector>
+#include <unordered_map>
+#include <optional>
+
 
 namespace margelo::nitro::fasthtmlparser {
 
@@ -31,6 +34,21 @@ public:
     std::string type_;
     std::string text_;
     std::string url_;
+    double fontSize_{16.0};
+    std::string color_{"#000000"};
+    std::string backgroundColor_{""};
+    std::string fontFamily_{""};
+    std::string fontWeight_{"normal"};
+    std::string fontStyle_{"normal"};
+    double letterSpacing_{0.0};
+    std::string textTransform_{""};
+    std::string textDecorationColor_{""};
+    std::string textDecorationStyle_{""};
+    double opacity_{1.0};
+    bool isUnderline_{false};
+    bool isStrikethrough_{false};
+    bool isLink_{false};
+    double baselineShift_{0.0};
     std::vector<std::shared_ptr<HybridInlineNode>> children_;
 
     HybridInlineNode() : HybridObject("InlineNode"), HybridInlineNodeSpec() {}
@@ -41,6 +59,16 @@ public:
     std::string getType() override { return type_; }
     std::string getText() override { return text_; }
     std::string getUrl() override { return url_; }
+    double getFontSize() override { return fontSize_; }
+    std::string getColor() override { return color_; }
+    std::string getBackgroundColor() override { return backgroundColor_; }
+    std::string getFontFamily() override { return fontFamily_; }
+    std::string getFontWeight() override { return fontWeight_; }
+    std::string getFontStyle() override { return fontStyle_; }
+    bool getIsUnderline() override { return isUnderline_; }
+    bool getIsStrikethrough() override { return isStrikethrough_; }
+    bool getIsLink() override { return isLink_; }
+    double getBaselineShift() override { return baselineShift_; }
     double getChildCount() override { return static_cast<double>(children_.size()); }
     std::variant<std::shared_ptr<HybridInlineNodeSpec>, NullType> getChild(double index) override {
         size_t idx = static_cast<size_t>(index);
@@ -124,6 +152,28 @@ class HybridContentBlock : public HybridContentBlockSpec {
 public:
     std::string type_;
     double level_{0};
+    double fontSize_{16.0};
+    std::string color_{"#000000"};
+    std::string backgroundColor_{""};
+    std::string fontFamily_{""};
+    std::string fontWeight_{"normal"};
+    std::string fontStyle_{"normal"};
+    double lineHeight_{0.0};
+    double letterSpacing_{0.0};
+    std::string textAlign_{""};
+    std::string textTransform_{""};
+    double textIndent_{0.0};
+    double marginTop_{0.0};
+    double marginBottom_{0.0};
+    double marginLeft_{0.0};
+    double marginRight_{0.0};
+    double paddingTop_{0.0};
+    double paddingBottom_{0.0};
+    double paddingLeft_{0.0};
+    double paddingRight_{0.0};
+    std::string borderLeftColor_{""};
+    double borderLeftWidth_{0.0};
+    double opacity_{1.0};
     std::string url_;
     std::string alt_;
     std::string caption_;
@@ -133,6 +183,7 @@ public:
     std::string src_;
     std::string poster_;
     std::string title_;
+    std::string html_;
 
     std::vector<std::shared_ptr<HybridInlineNode>> children_;
     std::vector<std::shared_ptr<HybridContentBlock>> quoteChildren_;
@@ -147,6 +198,16 @@ public:
 
     std::string getType() override { return type_; }
     double getLevel() override { return level_; }
+    double getFontSize() override { return fontSize_; }
+    std::string getColor() override { return color_; }
+    std::string getBackgroundColor() override { return backgroundColor_; }
+    std::string getFontFamily() override { return fontFamily_; }
+    std::string getFontWeight() override { return fontWeight_; }
+    std::string getFontStyle() override { return fontStyle_; }
+    double getLineHeight() override { return lineHeight_; }
+    double getMarginTop() override { return marginTop_; }
+    double getMarginBottom() override { return marginBottom_; }
+    double getPaddingLeft() override { return paddingLeft_; }
     std::string getUrl() override { return url_; }
     std::string getAlt() override { return alt_; }
     std::string getCaption() override { return caption_; }
@@ -156,6 +217,7 @@ public:
     std::string getSrc() override { return src_; }
     std::string getPoster() override { return poster_; }
     std::string getTitle() override { return title_; }
+    std::string getHtml() override;
 
     double getChildCount() override { return static_cast<double>(children_.size()); }
     std::variant<std::shared_ptr<HybridInlineNodeSpec>, NullType> getChild(double index) override {
@@ -191,6 +253,8 @@ public:
         if (idx < defItems_.size()) return defItems_[idx];
         return nullptr;
     }
+
+    float estimateHeight(float width, float baseFontSize, float baseLineHeight, float fontScale) const;
 };
 
 inline std::variant<std::shared_ptr<HybridContentBlockSpec>, NullType> HybridListItem::getNested(double index) {
@@ -214,8 +278,8 @@ public:
         if (idx < blocks_.size()) return blocks_[idx];
         return nullptr;
     }
-    std::string toJSON() override;
-    std::shared_ptr<ArrayBuffer> toBuffer() override;
+
+    float estimateHeight(float width, float baseFontSize, float baseLineHeight, float fontScale) const;
 };
 
 // ── HybridFastHtmlParser ─────────────────────────────────────────────────────
@@ -225,20 +289,45 @@ class HybridFastHtmlParser : public HybridFastHtmlParserSpec {
 public:
     HybridFastHtmlParser() : HybridObject("FastHtmlParser"), HybridFastHtmlParserSpec() {}
 
-    // Sync fast height estimator — no full parse, called before parse() for Frame 0
-    double estimateHeight(const std::string& html, double lineHeight) override;
-
     // Synchronous HTML parse — returns ParsedArticle directly via JSI
     std::variant<std::shared_ptr<HybridParsedArticleSpec>, NullType> parse(const std::string& html) override;
 
     // Asynchronous HTML parse — dispatches to background thread and returns Promise
     std::shared_ptr<Promise<std::variant<std::shared_ptr<HybridParsedArticleSpec>, NullType>>> parseAsync(const std::string& html) override;
 
-    // JSON serialization helper
-    std::string parseToJSON(const std::string& html) override;
+    // Internal parse implementation — shared by sync and async modes, with optional baseStyle and tagsStyles
+    static std::shared_ptr<HybridParsedArticle> parseInternal(
+        const std::string& html,
+        const std::optional<NativeTextStyle>& baseStyle = std::nullopt,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles = std::nullopt
+    );
 
-    // Internal parse implementation — shared by sync and async modes
-    static std::shared_ptr<HybridParsedArticle> parseInternal(const std::string& html);
+    // Serializes a parsed article to a compact JSON string
+    static std::string articleToJson(const std::shared_ptr<HybridParsedArticle>& article);
+
+    // Parses HTML and serializes AST to JSON directly
+    static std::string parseHtmlToJson(
+        const std::string& html,
+        const std::string& baseStyleJson = "",
+        const std::string& tagsStylesJson = ""
+    );
+
+    // Dynamic C++ Lexbor height calculation for Fabric Yoga layout pass using device typography metrics
+    double calculateHtmlHeight(const std::string& html, double width, double baseFontSize, double baseLineHeight, double fontScale) override;
+    static float calculateHtmlHeight(const std::string& html, float width, float baseFontSize, float baseLineHeight, float fontScale);
+
+    // Normalizes HTML via compiled C++ Lexbor
+    std::string normalizeHtml(const std::string& html) override;
+
+    // Wraps HTML with default/fallback device styling and user overrides
+    static std::string wrapHtmlWithDefaultStyles(
+        const std::string& html,
+        const std::optional<NativeTextStyle>& baseStyle = std::nullopt,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles = std::nullopt
+    );
 };
 
 } // namespace margelo::nitro::fasthtmlparser
+
+
+

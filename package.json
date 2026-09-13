@@ -1,6 +1,6 @@
 {
   "name": "react-native-fast-html-parser",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Ultra-fast HTML parser and 100% native Fabric RichText renderer for React Native. Powered by C++ (Lexbor) and zero-copy Nitro JSI",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",

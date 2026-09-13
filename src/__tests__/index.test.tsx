@@ -259,24 +259,22 @@ jest.mock('react-native-nitro-modules', () => {
       });
     }
 
+    blocks.forEach((b: any) => {
+      if (!b.html) b.html = `<p>${b.type}</p>`;
+    });
+
     return blocks;
   }
 
   return {
     NitroModules: {
       createHybridObject: jest.fn(() => ({
-        estimateHeight: jest.fn((html: string, _lineHeight: number = 22) => {
-          if (!html) return 0;
-          return 44;
-        }),
         parse: jest.fn((html: string) => {
           if (!html) return null;
           const blocks = sanitizeAndTokenize(html);
           return {
             length: blocks.length,
             getBlock: (idx: number) => blocks[idx] || null,
-            toJSON: () => JSON.stringify(blocks),
-            toBuffer: () => new ArrayBuffer(blocks.length * 16),
           };
         }),
         parseAsync: jest.fn(async (html: string) => {
@@ -285,13 +283,7 @@ jest.mock('react-native-nitro-modules', () => {
           return {
             length: blocks.length,
             getBlock: (idx: number) => blocks[idx] || null,
-            toJSON: () => JSON.stringify(blocks),
-            toBuffer: () => new ArrayBuffer(blocks.length * 16),
           };
-        }),
-        parseToJSON: jest.fn((html: string) => {
-          const blocks = sanitizeAndTokenize(html);
-          return JSON.stringify({ blocks });
         }),
       })),
     },
@@ -303,7 +295,6 @@ jest.mock('react-native-nitro-modules', () => {
 import {
   FastHtmlView,
   NativeHtmlView,
-  createCanonicalAdapter,
   getBlocks,
   getChildren,
   getItems,
@@ -314,8 +305,6 @@ import {
   getDefItems,
   parseHTML,
   parseHTMLAsync,
-  parseHTMLToJSON,
-  estimateHtmlHeight,
 } from '../index';
 
 describe('1. Module Exports & Core APIs', () => {
@@ -326,7 +315,7 @@ describe('1. Module Exports & Core APIs', () => {
 
   it('exports core parser methods', () => {
     expect(typeof parseHTML).toBe('function');
-    expect(typeof parseHTMLToJSON).toBe('function');
+    expect(typeof parseHTMLAsync).toBe('function');
   });
 
   it('exports all 8 AST helper wrappers', () => {
@@ -364,9 +353,8 @@ describe('2. Malformed HTML Recovery & Resiliency', () => {
       '<p>&amp; &lt; &gt; &quot; &apos; &#160; &#x26; &#x1F600; 😀</p>';
     const article = parseHTML(entities);
     expect(article).not.toBeNull();
-    const jsonStr = parseHTMLToJSON(entities);
-    const parsed = JSON.parse(jsonStr);
-    expect(parsed.blocks.length).toBeGreaterThan(0);
+    const blocks = getBlocks(article);
+    expect(blocks.length).toBeGreaterThan(0);
   });
 
   it('handles excessive whitespace, tabs, and multiline unclosed strings', () => {
@@ -619,36 +607,6 @@ describe('6. Combination & Mega Stress Test', () => {
     });
   });
 
-  it('transforms mega document via createCanonicalAdapter seamlessly', () => {
-    const jsonStr = parseHTMLToJSON(MEGA_HTML);
-    const parsedData = JSON.parse(jsonStr);
-
-    const adapter = createCanonicalAdapter<
-      { total: number; headings: string[]; customWidgets: string[] },
-      { kind: string; payload: any }
-    >({
-      transformers: {
-        Heading: (b) => ({ kind: 'heading', payload: (b as any).level }),
-        Video: (b) => ({ kind: 'video', payload: (b as any).src }),
-      },
-      transformBlock: (b) => ({ kind: b.type, payload: b }),
-      transformArticle: (_art, blocks) => ({
-        total: blocks.length,
-        headings: blocks
-          .filter((b) => b.kind === 'heading')
-          .map((b) => `Level ${b.payload}`),
-        customWidgets: blocks
-          .filter((b) => b.kind === 'video')
-          .map((b) => b.payload),
-      }),
-    });
-
-    const canonical = adapter.adapt(parsedData);
-    expect(canonical.total).toBeGreaterThan(0);
-    expect(Array.isArray(canonical.headings)).toBe(true);
-    expect(Array.isArray(canonical.customWidgets)).toBe(true);
-  });
-
   it('renders mega document in FastHtmlView with custom renderer injection stream', () => {
     const CustomVideo = ({ block }: any) =>
       React.createElement('View', { testID: `video-${block.src}` });
@@ -674,26 +632,12 @@ describe('6. Combination & Mega Stress Test', () => {
     expect(element.type).toBe(FastHtmlView);
   });
 
-  // 7. Advanced Native Optimizations & New Features
+  // 7. Advanced Native Optimizations & Capabilities
   describe('7. Advanced Native Optimizations & Capabilities', () => {
     it('parses large document asynchronously via parseHTMLAsync', async () => {
       const article = await parseHTMLAsync(MEGA_HTML);
       expect(article).not.toBeNull();
       expect(article!.length).toBeGreaterThan(0);
-    });
-
-    it('exports compact binary ArrayBuffer via article.toBuffer()', () => {
-      const article = parseHTML(MEGA_HTML);
-      expect(article).not.toBeNull();
-      const buffer = article!.toBuffer();
-      expect(buffer).toBeInstanceOf(ArrayBuffer);
-      expect(buffer.byteLength).toBeGreaterThan(0);
-    });
-
-    it('calculates fast height estimate via estimateHtmlHeight', () => {
-      const height = estimateHtmlHeight('<p>Hello World</p>', 22);
-      expect(typeof height).toBe('number');
-      expect(height).toBeGreaterThan(0);
     });
 
     it('supports sync parseHTML and async parseHTMLAsync', async () => {

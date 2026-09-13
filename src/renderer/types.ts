@@ -12,6 +12,7 @@ export type { NativeTextStyle };
 export type CustomBlockRenderer = React.ComponentType<{
   block: ContentBlock;
   baseStyle?: TextStyle;
+  tagStyle?: TextStyle | ViewStyle;
 }>;
 
 export type CustomInlineRenderer = React.ComponentType<{
@@ -89,104 +90,4 @@ export interface FastHtmlViewProps {
    * Style for the outer container.
    */
   style?: ViewStyle;
-}
-
-// ── JSON AST Schema Contracts ───────────────────────────────────────────────
-
-export interface InlineNodeData {
-  type: string;
-  text?: string;
-  url?: string;
-  isBold?: boolean;
-  isItalic?: boolean;
-  attributes?: Record<string, string>;
-  children?: InlineNodeData[];
-}
-
-export interface BaseBlockData {
-  type: string;
-  tag?: string;
-  id?: string;
-  className?: string;
-  attributes?: Record<string, string>;
-}
-
-export interface HeadingBlockData extends BaseBlockData {
-  type: 'heading';
-  level: number;
-  children: InlineNodeData[];
-}
-
-export interface ParagraphBlockData extends BaseBlockData {
-  type: 'paragraph';
-  children: InlineNodeData[];
-}
-
-export interface ListItemData {
-  children: InlineNodeData[];
-  nestedBlocks?: ContentBlockData[];
-}
-
-export interface ListBlockData extends BaseBlockData {
-  type: 'list';
-  ordered: boolean;
-  items: ListItemData[];
-}
-
-export interface TableCellData {
-  children: InlineNodeData[];
-}
-
-export interface TableRowData {
-  cells: TableCellData[];
-}
-
-export interface TableBlockData extends BaseBlockData {
-  type: 'table';
-  headers?: string[];
-  rows: TableRowData[];
-}
-
-export interface ImageBlockData extends BaseBlockData {
-  type: 'image';
-  url: string;
-  alt?: string;
-  caption?: string;
-  linkUrl?: string;
-  width?: number;
-  height?: number;
-}
-
-export interface CodeBlockData extends BaseBlockData {
-  type: 'code';
-  code: string;
-  language?: string;
-}
-
-export interface QuoteBlockData extends BaseBlockData {
-  type: 'quote';
-  children: ContentBlockData[];
-}
-
-export interface CustomBlockData extends BaseBlockData {
-  type: 'custom';
-  content?: string;
-  children?: ContentBlockData[];
-}
-
-export type ContentBlockData =
-  | HeadingBlockData
-  | ParagraphBlockData
-  | ListBlockData
-  | TableBlockData
-  | ImageBlockData
-  | CodeBlockData
-  | QuoteBlockData
-  | CustomBlockData
-  | (BaseBlockData & Record<string, any>);
-
-export interface ParsedArticleData {
-  title?: string;
-  blocks: ContentBlockData[];
-  metadata?: Record<string, any>;
 }

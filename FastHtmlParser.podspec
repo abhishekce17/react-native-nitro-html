@@ -31,17 +31,32 @@ Pod::Spec.new do |s|
 
   s.source_files = [
     "ios/**/*.{m,mm,swift}",
-    "cpp/**/*.{hpp,h}",
+    "cpp/*.{hpp,h}",
     "cpp/HybridFastHtmlParser.cpp",
-    # Lexbor C source files (downloaded by prepare_command above)
-    "cpp/lexbor/source/**/*.{c,h}",
+    # Lexbor C source files only (headers resolved via HEADER_SEARCH_PATHS)
+    "cpp/lexbor/source/**/*.c",
+    # Nitrogen generated sources
+    "nitrogen/generated/shared/**/*.{h,hpp,c,cpp,swift}",
+    "nitrogen/generated/ios/**/*.{h,hpp,c,cpp,mm,swift}",
   ]
   s.exclude_files = [
     "cpp/lexbor/source/lexbor/ports/windows_nt/**/*",
   ]
 
+  s.public_header_files = [
+    "ios/**/*.{h,hpp}",
+    "cpp/*.hpp",
+    "nitrogen/generated/shared/**/*.{h,hpp}",
+    "nitrogen/generated/ios/FastHtmlParser-Swift-Cxx-Bridge.hpp",
+  ]
+  s.private_header_files = [
+    "nitrogen/generated/ios/c++/**/*.{h,hpp}",
+    "nitrogen/generated/shared/**/views/**/*",
+  ]
+
   s.dependency 'React-jsi'
   s.dependency 'React-callinvoker'
+  s.dependency 'NitroModules'
 
   load 'nitrogen/generated/ios/FastHtmlParser+autolinking.rb'
   add_nitrogen_files(s)
@@ -49,13 +64,14 @@ Pod::Spec.new do |s|
   install_modules_dependencies(s)
 
   # ── xcconfig — use attributes_hash to MERGE, not replace ────────────────────
-  # Direct s.pod_target_xcconfig = {} assignment REPLACES the config set by
-  # add_nitrogen_files above. Use attributes_hash to merge additional values.
   s.attributes_hash["pod_target_xcconfig"] ||= {}
   s.attributes_hash["pod_target_xcconfig"]["CLANG_CXX_LANGUAGE_STANDARD"] = "c++20"
+  s.attributes_hash["pod_target_xcconfig"]["SWIFT_OBJC_INTEROP_MODE"] = "objcxx"
+  s.attributes_hash["pod_target_xcconfig"]["DEFINES_MODULE"] = "YES"
+  s.attributes_hash["pod_target_xcconfig"]["SWIFT_INSTALL_OBJC_HEADER"] = "NO"
   # Allow Lexbor's C-style #includes inside the framework module
   s.attributes_hash["pod_target_xcconfig"]["CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES"] = "YES"
-  # Add Lexbor header search path on top of whatever add_nitrogen_files already set
+  # Add Lexbor header search path
   existing_paths = s.attributes_hash["pod_target_xcconfig"]["HEADER_SEARCH_PATHS"] || ""
   lexbor_path = "$(PODS_TARGET_SRCROOT)/cpp/lexbor/source"
   s.attributes_hash["pod_target_xcconfig"]["HEADER_SEARCH_PATHS"] = "#{existing_paths} #{lexbor_path}".strip

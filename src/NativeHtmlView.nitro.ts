@@ -13,7 +13,32 @@ export interface NativeTextStyle {
   fontStyle?: string;
   letterSpacing?: number;
   textAlign?: string;
+  textTransform?: string;
+  textIndent?: number;
+  textDecorationLine?: string;
+  textDecorationColor?: string;
+  textDecorationStyle?: string;
   backgroundColor?: string;
+  opacity?: number;
+  margin?: number;
+  marginVertical?: number;
+  marginHorizontal?: number;
+  marginTop?: number;
+  marginBottom?: number;
+  marginLeft?: number;
+  marginRight?: number;
+  padding?: number;
+  paddingVertical?: number;
+  paddingHorizontal?: number;
+  paddingTop?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  borderRadius?: number;
+  borderLeftColor?: string;
+  borderLeftWidth?: number;
   fontFeatureSettings?: string;
 }
 
