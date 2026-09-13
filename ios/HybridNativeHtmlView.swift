@@ -31,12 +31,55 @@ private final class TextViewDelegateShim: NSObject, UITextViewDelegate {
   }
 }
 
+private struct CachedSeparator {
+  let layer: CALayer
+  let range: NSRange
+  let height: CGFloat
+  let color: UIColor
+}
+
+private struct CachedBorder {
+  let layer: CALayer
+  let range: NSRange
+  let width: CGFloat
+  let inset: CGFloat
+  let color: UIColor
+}
+
+private struct CachedImageViewItem {
+  let containerView: UIView
+  let imageView: UIImageView
+  let captionLabel: UILabel?
+  let range: NSRange
+  let aspect: CGFloat
+  let captionHeight: CGFloat
+}
+
+private struct CachedTableViewItem {
+  let scrollView: UIScrollView
+  let gridView: UIView
+  let range: NSRange
+  let rows: [[NSAttributedString]]
+  let numRows: Int
+  let numCols: Int
+  let rowHeight: CGFloat
+  let borderWidth: CGFloat
+  let borderColor: UIColor
+  let padH: CGFloat
+  let padV: CGFloat
+  let cellLabels: [UILabel]
+  let vLines: [CALayer]
+  let hLines: [CALayer]
+}
+
 final class FastHtmlTextView: UITextView {
   private static let imageCache = NSCache<NSString, UIImage>()
-  private var borderLayers: [CALayer] = []
-  private var separatorLayers: [CALayer] = []
-  private var tableViews: [UIView] = []
-  private var imageViews: [UIView] = []
+  private var cachedSeparators: [CachedSeparator] = []
+  private var cachedBorders: [CachedBorder] = []
+  private var cachedImages: [CachedImageViewItem] = []
+  private var cachedTables: [CachedTableViewItem] = []
+  private var activeImageTasks: [URLSessionDataTask] = []
+  var onRequestRebuild: (() -> Void)?
 
   init() {
     let layoutManager = NSLayoutManager()
@@ -51,21 +94,35 @@ final class FastHtmlTextView: UITextView {
     super.init(coder: coder)
   }
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    updateBorderLayers()
-    updateSeparatorLayers()
-    updateTableViews()
-    updateImageViews()
+  deinit {
+    cancelPendingDownloads()
   }
 
-  func updateSeparatorLayers() {
-    separatorLayers.forEach { $0.removeFromSuperlayer() }
-    separatorLayers.removeAll()
+  func cancelPendingDownloads() {
+    activeImageTasks.forEach { $0.cancel() }
+    activeImageTasks.removeAll()
+  }
 
-    guard let attr = attributedText, attr.length > 0 else { return }
-    let availW = max(bounds.width - textContainerInset.left - textContainerInset.right, 200.0)
+  func rebuildSubviews(for attr: NSAttributedString) {
+    // 1. Cancel previous pending network tasks
+    cancelPendingDownloads()
 
+    // 2. Remove previous layers and subviews
+    cachedSeparators.forEach { $0.layer.removeFromSuperlayer() }
+    cachedSeparators.removeAll()
+
+    cachedBorders.forEach { $0.layer.removeFromSuperlayer() }
+    cachedBorders.removeAll()
+
+    cachedImages.forEach { $0.containerView.removeFromSuperview() }
+    cachedImages.removeAll()
+
+    cachedTables.forEach { $0.scrollView.removeFromSuperview() }
+    cachedTables.removeAll()
+
+    guard attr.length > 0 else { return }
+
+    // 3. Instantiate Separators
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlSeparatorData"),
       in: NSRange(location: 0, length: attr.length),
@@ -73,32 +130,16 @@ final class FastHtmlTextView: UITextView {
     ) { [weak self] value, range, _ in
       guard let self = self,
             let dict = value as? NSDictionary else { return }
-
       let color = dict["color"] as? UIColor ?? UIColor(red: 0.89, green: 0.91, blue: 0.94, alpha: 1.0)
       let hrHeight = CGFloat((dict["height"] as? NSNumber)?.doubleValue ?? 1.5)
 
-      let glyphRange = self.layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-      let blockRect = self.layoutManager.boundingRect(forGlyphRange: glyphRange, in: self.textContainer)
-
-      if blockRect.width <= 0 || blockRect.height <= 0 { return }
-
-      let yPos = blockRect.origin.y + self.textContainerInset.top + (blockRect.height - hrHeight) / 2.0
-      let xPos = self.textContainerInset.left
-
       let sepLayer = CALayer()
-      sepLayer.frame = CGRect(x: xPos, y: yPos, width: availW, height: hrHeight)
       sepLayer.backgroundColor = color.cgColor
       self.layer.addSublayer(sepLayer)
-      self.separatorLayers.append(sepLayer)
+      self.cachedSeparators.append(CachedSeparator(layer: sepLayer, range: range, height: hrHeight, color: color))
     }
-  }
 
-  func updateBorderLayers() {
-    borderLayers.forEach { $0.removeFromSuperlayer() }
-    borderLayers.removeAll()
-
-    guard let attr = attributedText, attr.length > 0 else { return }
-
+    // 4. Instantiate Borders
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlBorderLeft"),
       in: NSRange(location: 0, length: attr.length),
@@ -106,41 +147,18 @@ final class FastHtmlTextView: UITextView {
     ) { [weak self] value, range, _ in
       guard let self = self,
             let dict = value as? NSDictionary else { return }
-
-      let width = (dict["width"] as? NSNumber)?.doubleValue ?? 4.0
+      let width = CGFloat((dict["width"] as? NSNumber)?.doubleValue ?? 4.0)
       let color = dict["color"] as? UIColor ?? UIColor(red: 0.58, green: 0.64, blue: 0.72, alpha: 1.0)
-      let inset = (dict["inset"] as? NSNumber)?.doubleValue ?? 0.0
-
-      let glyphRange = self.layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-      var blockRect = self.layoutManager.boundingRect(forGlyphRange: glyphRange, in: self.textContainer)
-
-      blockRect.origin.x += self.textContainerInset.left
-      blockRect.origin.y += self.textContainerInset.top
+      let inset = CGFloat((dict["inset"] as? NSNumber)?.doubleValue ?? 0.0)
 
       let borderLayer = CALayer()
-      let xPos = CGFloat(inset) + self.textContainerInset.left
-      borderLayer.frame = CGRect(
-        x: xPos,
-        y: blockRect.origin.y,
-        width: CGFloat(width),
-        height: blockRect.height
-      )
       borderLayer.backgroundColor = color.cgColor
-      borderLayer.cornerRadius = CGFloat(width) / 2.0
+      borderLayer.cornerRadius = width / 2.0
       self.layer.addSublayer(borderLayer)
-      self.borderLayers.append(borderLayer)
+      self.cachedBorders.append(CachedBorder(layer: borderLayer, range: range, width: width, inset: inset, color: color))
     }
-  }
 
-  var onRequestRebuild: (() -> Void)?
-
-  func updateImageViews() {
-    imageViews.forEach { $0.removeFromSuperview() }
-    imageViews.removeAll()
-
-    guard let attr = attributedText, attr.length > 0 else { return }
-    self.layoutManager.ensureLayout(for: self.textContainer)
-
+    // 5. Instantiate Images
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlImageData"),
       in: NSRange(location: 0, length: attr.length),
@@ -152,27 +170,13 @@ final class FastHtmlTextView: UITextView {
             !urlString.isEmpty else { return }
 
       let caption = (dict["caption"] as? String) ?? ""
-      let aspect = (dict["aspectRatio"] as? NSNumber)?.doubleValue ?? 0.3333
-      let availableWidth = max(self.bounds.width - self.textContainerInset.left - self.textContainerInset.right, 200.0)
-      let initialImgH = CGFloat(ceil(Double(availableWidth) * aspect))
-      let initialCapH = !caption.isEmpty ? 24.0 : 0.0
-      let totalH = initialImgH + initialCapH
+      let aspect = CGFloat((dict["aspectRatio"] as? NSNumber)?.doubleValue ?? 0.3333)
+      let capHeight: CGFloat = !caption.isEmpty ? 24.0 : 0.0
 
-      let glyphRange = self.layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-      var blockRect = self.layoutManager.boundingRect(forGlyphRange: glyphRange, in: self.textContainer)
-
-      blockRect.origin.x += self.textContainerInset.left
-      blockRect.origin.y += self.textContainerInset.top
-
-      let containerView = UIView(frame: CGRect(
-        x: self.textContainerInset.left,
-        y: blockRect.origin.y,
-        width: availableWidth,
-        height: totalH
-      ))
+      let containerView = UIView(frame: .zero)
       containerView.backgroundColor = .clear
 
-      let imageView = UIImageView(frame: CGRect(x: 0, y: 0, width: availableWidth, height: initialImgH))
+      let imageView = UIImageView(frame: .zero)
       imageView.contentMode = .scaleAspectFill
       imageView.clipsToBounds = true
       imageView.layer.cornerRadius = 8.0
@@ -180,7 +184,7 @@ final class FastHtmlTextView: UITextView {
 
       let captionLabel: UILabel?
       if !caption.isEmpty {
-        let label = UILabel(frame: CGRect(x: 0, y: initialImgH + 4, width: availableWidth, height: 20))
+        let label = UILabel(frame: .zero)
         label.font = UIFont.italicSystemFont(ofSize: 13.0)
         label.textColor = UIColor(red: 0.28, green: 0.33, blue: 0.41, alpha: 1.0)
         label.text = caption
@@ -194,7 +198,7 @@ final class FastHtmlTextView: UITextView {
       if let cached = FastHtmlTextView.imageCache.object(forKey: urlString as NSString) {
         imageView.image = cached
       } else if let url = URL(string: urlString) {
-        URLSession.shared.dataTask(with: url) { [weak self, weak imageView] data, _, _ in
+        let task = URLSession.shared.dataTask(with: url) { [weak self, weak imageView] data, _, _ in
           if let data = data, let img = UIImage(data: data), img.size.width > 0 {
             let naturalAspect = img.size.height / img.size.width
             FastHtmlTextView.imageCache.setObject(img, forKey: urlString as NSString)
@@ -204,22 +208,24 @@ final class FastHtmlTextView: UITextView {
               self?.onRequestRebuild?()
             }
           }
-        }.resume()
+        }
+        self.activeImageTasks.append(task)
+        task.resume()
       }
 
       containerView.addSubview(imageView)
       self.addSubview(containerView)
-      self.imageViews.append(containerView)
+      self.cachedImages.append(CachedImageViewItem(
+        containerView: containerView,
+        imageView: imageView,
+        captionLabel: captionLabel,
+        range: range,
+        aspect: aspect,
+        captionHeight: capHeight
+      ))
     }
-  }
 
-  func updateTableViews() {
-    tableViews.forEach { $0.removeFromSuperview() }
-    tableViews.removeAll()
-
-    guard let attr = attributedText, attr.length > 0 else { return }
-    self.layoutManager.ensureLayout(for: self.textContainer)
-
+    // 6. Instantiate Tables
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlTableData"),
       in: NSRange(location: 0, length: attr.length),
@@ -231,16 +237,10 @@ final class FastHtmlTextView: UITextView {
             !rows.isEmpty else { return }
 
       let borderColor = dict["borderColor"] as? UIColor ?? UIColor(red: 0.12, green: 0.23, blue: 0.54, alpha: 1.0)
-      let borderWidth = (dict["borderWidth"] as? NSNumber)?.doubleValue ?? 1.5
-      let rowHeight = (dict["rowHeight"] as? NSNumber)?.doubleValue ?? 38.0
+      let borderWidth = CGFloat((dict["borderWidth"] as? NSNumber)?.doubleValue ?? 1.5)
+      let rowHeight = CGFloat((dict["rowHeight"] as? NSNumber)?.doubleValue ?? 38.0)
       let padH: CGFloat = 12.0
       let padV: CGFloat = 8.0
-
-      let glyphRange = self.layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-      var blockRect = self.layoutManager.boundingRect(forGlyphRange: glyphRange, in: self.textContainer)
-
-      blockRect.origin.x += self.textContainerInset.left
-      blockRect.origin.y += self.textContainerInset.top
 
       let numRows = rows.count
       var numCols = 0
@@ -249,100 +249,194 @@ final class FastHtmlTextView: UITextView {
       }
       if numCols == 0 { return }
 
-      // 1. Calculate natural column widths based on cell text measurements
-      var colWidths = [CGFloat](repeating: 0, count: numCols)
-      for r in rows {
-        for (cIndex, cellAttr) in r.enumerated() {
-          let textSize = cellAttr.size()
-          let cellW = ceil(textSize.width) + (padH * 2)
-          if cellW > colWidths[cIndex] {
-            colWidths[cIndex] = max(cellW, 60.0)
-          }
-        }
-      }
-
-      let availableWidth = max(self.bounds.width - self.textContainerInset.left - self.textContainerInset.right, 200.0)
-      let naturalTotalWidth = colWidths.reduce(0, +)
-
-      // If table fits in view width, expand columns proportionally so it spans full width
-      if naturalTotalWidth < availableWidth {
-        let extra = (availableWidth - naturalTotalWidth) / CGFloat(numCols)
-        for c in 0..<numCols {
-          colWidths[c] += extra
-        }
-      }
-
-      let finalTotalWidth = colWidths.reduce(0, +)
-      let totalTableHeight = CGFloat(numRows) * CGFloat(rowHeight)
-
-      // 2. Horizontal UIScrollView
-      let scrollView = UIScrollView(frame: CGRect(
-        x: self.textContainerInset.left,
-        y: blockRect.origin.y,
-        width: availableWidth,
-        height: totalTableHeight
-      ))
+      let scrollView = UIScrollView(frame: .zero)
       scrollView.showsHorizontalScrollIndicator = true
       scrollView.alwaysBounceHorizontal = false
-      scrollView.contentSize = CGSize(width: finalTotalWidth, height: totalTableHeight)
       scrollView.clipsToBounds = true
 
-      // 3. Grid Container View
-      let gridView = UIView(frame: CGRect(x: 0, y: 0, width: finalTotalWidth, height: totalTableHeight))
+      let gridView = UIView(frame: .zero)
       gridView.backgroundColor = .clear
       gridView.layer.borderColor = borderColor.cgColor
-      gridView.layer.borderWidth = CGFloat(borderWidth)
+      gridView.layer.borderWidth = borderWidth
       gridView.layer.masksToBounds = true
 
-      // Compute Column X Offsets
-      var colOffsets = [CGFloat](repeating: 0, count: numCols)
-      var currentX: CGFloat = 0
-      for c in 0..<numCols {
-        colOffsets[c] = currentX
-        currentX += colWidths[c]
-      }
-
-      // Vertical column dividers
-      for c in 1..<numCols {
+      var vLines: [CALayer] = []
+      for _ in 1..<numCols {
         let vLine = CALayer()
-        vLine.frame = CGRect(x: colOffsets[c], y: 0, width: CGFloat(borderWidth), height: totalTableHeight)
         vLine.backgroundColor = borderColor.cgColor
         gridView.layer.addSublayer(vLine)
+        vLines.append(vLine)
       }
 
-      // Horizontal row dividers
-      for r in 1..<numRows {
-        let yPos = CGFloat(r) * CGFloat(rowHeight)
+      var hLines: [CALayer] = []
+      for _ in 1..<numRows {
         let hLine = CALayer()
-        hLine.frame = CGRect(x: 0, y: yPos, width: finalTotalWidth, height: CGFloat(borderWidth))
         hLine.backgroundColor = borderColor.cgColor
         gridView.layer.addSublayer(hLine)
+        hLines.append(hLine)
       }
 
-      // 4. Place Cell Labels
-      for (rIndex, row) in rows.enumerated() {
-        let rowY = CGFloat(rIndex) * CGFloat(rowHeight)
-        for (cIndex, cellAttr) in row.enumerated() {
-          let cellX = colOffsets[cIndex]
-          let cellW = colWidths[cIndex]
-          let label = UILabel(frame: CGRect(
-            x: cellX + padH,
-            y: rowY + padV,
-            width: max(0, cellW - (padH * 2)),
-            height: max(0, CGFloat(rowHeight) - (padV * 2))
-          ))
+      var cellLabels: [UILabel] = []
+      for row in rows {
+        for cellAttr in row {
+          let label = UILabel(frame: .zero)
           label.attributedText = cellAttr
           label.numberOfLines = 1
           label.adjustsFontSizeToFitWidth = false
           label.lineBreakMode = .byTruncatingTail
           label.isUserInteractionEnabled = false
           gridView.addSubview(label)
+          cellLabels.append(label)
         }
       }
 
       scrollView.addSubview(gridView)
       self.addSubview(scrollView)
-      self.tableViews.append(scrollView)
+      self.cachedTables.append(CachedTableViewItem(
+        scrollView: scrollView,
+        gridView: gridView,
+        range: range,
+        rows: rows,
+        numRows: numRows,
+        numCols: numCols,
+        rowHeight: rowHeight,
+        borderWidth: borderWidth,
+        borderColor: borderColor,
+        padH: padH,
+        padV: padV,
+        cellLabels: cellLabels,
+        vLines: vLines,
+        hLines: hLines
+      ))
+    }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    layoutCachedElements()
+  }
+
+  private func layoutCachedElements() {
+    guard let attr = attributedText, attr.length > 0 else { return }
+    self.layoutManager.ensureLayout(for: self.textContainer)
+    let availW = max(bounds.width - textContainerInset.left - textContainerInset.right, 200.0)
+
+    // Layout Separators
+    for item in cachedSeparators {
+      let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      if blockRect.width <= 0 || blockRect.height <= 0 { continue }
+      let yPos = blockRect.origin.y + textContainerInset.top + (blockRect.height - item.height) / 2.0
+      let xPos = textContainerInset.left
+      item.layer.frame = CGRect(x: xPos, y: yPos, width: availW, height: item.height)
+    }
+
+    // Layout Borders
+    for item in cachedBorders {
+      let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      blockRect.origin.x += textContainerInset.left
+      blockRect.origin.y += textContainerInset.top
+      let xPos = item.inset + textContainerInset.left
+      item.layer.frame = CGRect(x: xPos, y: blockRect.origin.y, width: item.width, height: blockRect.height)
+    }
+
+    // Layout Images
+    for item in cachedImages {
+      let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      blockRect.origin.x += textContainerInset.left
+      blockRect.origin.y += textContainerInset.top
+
+      let imgH = ceil(availW * item.aspect)
+      let totalH = imgH + item.captionHeight
+
+      item.containerView.frame = CGRect(
+        x: textContainerInset.left,
+        y: blockRect.origin.y,
+        width: availW,
+        height: totalH
+      )
+      item.imageView.frame = CGRect(x: 0, y: 0, width: availW, height: imgH)
+      if let capLabel = item.captionLabel {
+        capLabel.frame = CGRect(x: 0, y: imgH + 4, width: availW, height: 20)
+      }
+    }
+
+    // Layout Tables
+    for item in cachedTables {
+      let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      blockRect.origin.x += textContainerInset.left
+      blockRect.origin.y += textContainerInset.top
+
+      var colWidths = [CGFloat](repeating: 0, count: item.numCols)
+      for r in item.rows {
+        for (cIndex, cellAttr) in r.enumerated() {
+          let textSize = cellAttr.size()
+          let cellW = ceil(textSize.width) + (item.padH * 2)
+          if cellW > colWidths[cIndex] {
+            colWidths[cIndex] = max(cellW, 60.0)
+          }
+        }
+      }
+
+      let naturalTotalWidth = colWidths.reduce(0, +)
+      if naturalTotalWidth < availW {
+        let extra = (availW - naturalTotalWidth) / CGFloat(item.numCols)
+        for c in 0..<item.numCols {
+          colWidths[c] += extra
+        }
+      }
+
+      let finalTotalWidth = colWidths.reduce(0, +)
+      let totalTableHeight = CGFloat(item.numRows) * item.rowHeight
+
+      item.scrollView.frame = CGRect(
+        x: textContainerInset.left,
+        y: blockRect.origin.y,
+        width: availW,
+        height: totalTableHeight
+      )
+      item.scrollView.contentSize = CGSize(width: finalTotalWidth, height: totalTableHeight)
+      item.gridView.frame = CGRect(x: 0, y: 0, width: finalTotalWidth, height: totalTableHeight)
+
+      var colOffsets = [CGFloat](repeating: 0, count: item.numCols)
+      var currentX: CGFloat = 0
+      for c in 0..<item.numCols {
+        colOffsets[c] = currentX
+        currentX += colWidths[c]
+      }
+
+      for (cIdx, vLine) in item.vLines.enumerated() {
+        let col = cIdx + 1
+        vLine.frame = CGRect(x: colOffsets[col], y: 0, width: item.borderWidth, height: totalTableHeight)
+      }
+
+      for (rIdx, hLine) in item.hLines.enumerated() {
+        let row = rIdx + 1
+        let yPos = CGFloat(row) * item.rowHeight
+        hLine.frame = CGRect(x: 0, y: yPos, width: finalTotalWidth, height: item.borderWidth)
+      }
+
+      var labelIdx = 0
+      for (rIndex, row) in item.rows.enumerated() {
+        let rowY = CGFloat(rIndex) * item.rowHeight
+        for (cIndex, _) in row.enumerated() {
+          if labelIdx < item.cellLabels.count {
+            let label = item.cellLabels[labelIdx]
+            let cellX = colOffsets[cIndex]
+            let cellW = colWidths[cIndex]
+            label.frame = CGRect(
+              x: cellX + item.padH,
+              y: rowY + item.padV,
+              width: max(0, cellW - (item.padH * 2)),
+              height: max(0, item.rowHeight - (item.padV * 2))
+            )
+            labelIdx += 1
+          }
+        }
+      }
     }
   }
 }
@@ -362,7 +456,11 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
   // MARK: - Props
 
   public var html: String? {
-    didSet { setNeedsContentUpdate() }
+    didSet {
+      if oldValue != html {
+        setNeedsContentUpdate()
+      }
+    }
   }
 
   public var baseStyle: NativeTextStyle? {
@@ -374,11 +472,19 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
   }
 
   public var selectable: Bool? {
-    didSet { textView.isSelectable = selectable ?? true }
+    didSet {
+      if oldValue != selectable {
+        textView.isSelectable = selectable ?? true
+      }
+    }
   }
 
   public var themeMode: String? {
-    didSet { setNeedsContentUpdate() }
+    didSet {
+      if oldValue != themeMode {
+        setNeedsContentUpdate()
+      }
+    }
   }
 
   public var onLinkPress: ((_ url: String) -> Void)?
@@ -391,6 +497,10 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
     super.init()
     delegateShim.owner = self
     setupTextView()
+  }
+
+  deinit {
+    (textView as? FastHtmlTextView)?.cancelPendingDownloads()
   }
 
   private func setupTextView() {
@@ -428,7 +538,9 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
 
   private func updateContent() {
     guard let rawHtml = html, !rawHtml.isEmpty else {
+      (textView as? FastHtmlTextView)?.cancelPendingDownloads()
       textView.attributedText = NSAttributedString(string: "")
+      (textView as? FastHtmlTextView)?.rebuildSubviews(for: NSAttributedString(string: ""))
       onContentSizeChange?(0)
       return
     }
@@ -441,11 +553,9 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
       containerWidth: targetWidth
     )
     textView.attributedText = attr
-    (textView as? FastHtmlTextView)?.updateBorderLayers()
-    (textView as? FastHtmlTextView)?.updateSeparatorLayers()
-    (textView as? FastHtmlTextView)?.updateTableViews()
-    (textView as? FastHtmlTextView)?.updateImageViews()
-    textView.setNeedsDisplay()
+    (textView as? FastHtmlTextView)?.rebuildSubviews(for: attr)
+    textView.setNeedsLayout()
+    textView.layoutIfNeeded()
     textView.invalidateIntrinsicContentSize()
     updateAccessibility(for: attr)
 

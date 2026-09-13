@@ -39,29 +39,57 @@ class HybridNativeHtmlView(
 
     private var isUpdateScheduled = false
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val activeFutures = java.util.Collections.synchronizedList(mutableListOf<java.util.concurrent.Future<*>>())
+
+    init {
+        containerLayout.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {}
+            override fun onViewDetachedFromWindow(v: View) {
+                cancelPendingDownloads()
+                mainHandler.removeCallbacks(reportContentHeightRunnable)
+            }
+        })
+    }
+
+    private fun cancelPendingDownloads() {
+        synchronized(activeFutures) {
+            for (f in activeFutures) {
+                f.cancel(true)
+            }
+            activeFutures.clear()
+        }
+    }
 
     override var html: String? = null
         set(value) {
-            field = value
-            setNeedsContentUpdate()
+            if (field != value) {
+                field = value
+                setNeedsContentUpdate()
+            }
         }
 
     override var baseStyle: NativeTextStyle? = null
         set(value) {
-            field = value
-            setNeedsContentUpdate()
+            if (field != value) {
+                field = value
+                setNeedsContentUpdate()
+            }
         }
 
     override var tagsStyles: Map<String, NativeTextStyle>? = null
         set(value) {
-            field = value
-            setNeedsContentUpdate()
+            if (field != value) {
+                field = value
+                setNeedsContentUpdate()
+            }
         }
 
     override var selectable: Boolean? = true
         set(value) {
-            field = value
-            updateSelectableRecursive(containerLayout, value ?: true)
+            if (field != value) {
+                field = value
+                updateSelectableRecursive(containerLayout, value ?: true)
+            }
         }
 
     private fun updateSelectableRecursive(v: View, sel: Boolean) {
@@ -76,14 +104,15 @@ class HybridNativeHtmlView(
 
     override var themeMode: String? = null
         set(value) {
-            field = value
-            setNeedsContentUpdate()
+            if (field != value) {
+                field = value
+                setNeedsContentUpdate()
+            }
         }
 
     override var onLinkPress: ((url: String) -> Unit)? = null
         set(value) {
             field = value
-            setNeedsContentUpdate()
         }
 
     override var onContentSizeChange: ((height: Double) -> Unit)? = null
@@ -114,6 +143,7 @@ class HybridNativeHtmlView(
     }
 
     private fun updateContent() {
+        cancelPendingDownloads()
         val rawHtml = html ?: ""
         containerLayout.removeAllViews()
         if (rawHtml.isEmpty()) {
@@ -277,11 +307,12 @@ class HybridNativeHtmlView(
                         imageView.setImageBitmap(cached)
                         imageView.invalidateOutline()
                     } else {
-                        Thread {
+                        val future = imageExecutor.submit {
                             try {
                                 var currentUrl = url
                                 var bitmap: android.graphics.Bitmap? = null
                                 for (redirect in 0..6) {
+                                    if (Thread.currentThread().isInterrupted) break
                                     val u = java.net.URL(currentUrl)
                                     val conn = u.openConnection() as java.net.HttpURLConnection
                                     conn.connectTimeout = 10000
@@ -315,17 +346,18 @@ class HybridNativeHtmlView(
                                     conn.disconnect()
                                     break
                                 }
-                                if (bitmap != null) {
+                                if (bitmap != null && !Thread.currentThread().isInterrupted) {
                                     val finalBmp = bitmap
                                     imageView.post {
                                         imageView.setImageBitmap(finalBmp)
                                         imageView.invalidateOutline()
-                                        reportContentHeight()
+                                        reportContentHeight(immediate = false)
                                     }
                                 }
                             } catch (_: Exception) {
                             }
-                        }.start()
+                        }
+                        activeFutures.add(future)
                     }
 
                     imgContainer.addView(imageView)
@@ -381,11 +413,11 @@ class HybridNativeHtmlView(
 
         // Measure unconstrained layout height and report back to React Native Yoga
         containerLayout.post {
-            reportContentHeight()
+            reportContentHeight(immediate = true)
         }
     }
 
-    private fun reportContentHeight() {
+    private val reportContentHeightRunnable = Runnable {
         val density = context.resources.displayMetrics.density
         val w = if (containerLayout.width > 0) containerLayout.width else context.resources.displayMetrics.widthPixels
         val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(w, android.view.View.MeasureSpec.EXACTLY)
@@ -398,7 +430,19 @@ class HybridNativeHtmlView(
         }
     }
 
+    private fun reportContentHeight(immediate: Boolean = false) {
+        mainHandler.removeCallbacks(reportContentHeightRunnable)
+        if (immediate) {
+            reportContentHeightRunnable.run()
+        } else {
+            mainHandler.postDelayed(reportContentHeightRunnable, 16)
+        }
+    }
+
     companion object {
         val imageCache = android.util.LruCache<String, android.graphics.Bitmap>(30)
+        val imageExecutor: java.util.concurrent.ExecutorService = java.util.concurrent.Executors.newFixedThreadPool(4) { r ->
+            Thread(r, "FastHtml-Image-Loader").apply { priority = Thread.NORM_PRIORITY - 1 }
+        }
     }
 }

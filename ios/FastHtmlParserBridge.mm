@@ -335,6 +335,10 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                                                         options:0
                                                           range:NSMakeRange(0, blockAttr.length)];
 
+            if (i < count - 1) {
+                [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
+            }
+
             NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
             if (block->marginTop_ > 0) {
                 paragraphStyle.paragraphSpacingBefore = static_cast<CGFloat>(block->marginTop_);
@@ -511,9 +515,6 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                 continue;
             }
             [fullText appendAttributedString:blockAttr];
-            if (i < count - 1) {
-                [fullText appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
-            }
         }
     }
 

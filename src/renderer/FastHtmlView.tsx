@@ -43,6 +43,55 @@ function hasCustomRenderers(renderers?: Record<string, unknown>): boolean {
   return false;
 }
 
+const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
+  html,
+  baseStyle,
+  tagsStyles,
+  selectable,
+  themeMode,
+  onLinkPress,
+  windowWidth,
+  baseFontSize,
+  baseLineHeight,
+  fontScale,
+}: {
+  html: string;
+  baseStyle?: NativeTextStyle;
+  tagsStyles?: Record<string, NativeTextStyle>;
+  selectable?: boolean;
+  themeMode?: string;
+  onLinkPress?: (url: string) => void;
+  windowWidth: number;
+  baseFontSize: number;
+  baseLineHeight: number;
+  fontScale: number;
+}) {
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const initialHeight = calculateHTMLHeight(
+    html,
+    windowWidth,
+    baseFontSize,
+    baseLineHeight,
+    fontScale
+  );
+  const height = measuredHeight > 0 ? measuredHeight : initialHeight;
+  const wrappedOnContentSizeChange = callback(setMeasuredHeight);
+  const wrappedOnLinkPress = onLinkPress ? callback(onLinkPress) : undefined;
+
+  return (
+    <NativeHtmlView
+      html={html}
+      baseStyle={baseStyle}
+      tagsStyles={tagsStyles}
+      selectable={selectable}
+      themeMode={themeMode}
+      onLinkPress={wrappedOnLinkPress}
+      onContentSizeChange={wrappedOnContentSizeChange}
+      style={[styles.textSegment, height > 0 ? { height } : undefined]}
+    />
+  );
+});
+
 // ─── FastHtmlView ─────────────────────────────────────────────────────────────
 //
 // Architecture:
@@ -56,7 +105,7 @@ function hasCustomRenderers(renderers?: Record<string, unknown>): boolean {
 //  ┌─ Custom Renderer Path (when renderers prop is provided) ──────────────┐
 //  │  Walk C++ AST blocks via getBlocks().                                  │
 //  │  · Custom Block (Video, Code, Poll) ──► React Component + tagStyle    │
-//  │  · Text Segment ──► NativeHtmlView + synchronous C++ JSI height       │
+//  │  · Text Segment ──► NativeHtmlSegmentView + dynamic native sync       │
 //  └───────────────────────────────────────────────────────────────────────┘
 
 export function FastHtmlView({
@@ -115,7 +164,7 @@ export function FastHtmlView({
     );
   }
 
-  // ── Custom Renderer Path (Direct C++ Lexbor Call + Segment JSI Sizing) ──────
+  // ── Custom Renderer Path (Direct C++ Lexbor Call + Segment Sizing) ──────────
   const article = parsedAst || (html ? parseHTML(html) : null);
   if (!article || !renderers) return null;
 
@@ -126,26 +175,19 @@ export function FastHtmlView({
 
   const flush = () => {
     if (pendingHtml.trim().length > 0) {
-      const segHeight = calculateHTMLHeight(
-        pendingHtml,
-        windowWidth,
-        baseFontSize,
-        baseLineHeight,
-        fontScale
-      );
       segments.push(
-        <NativeHtmlView
+        <NativeHtmlSegmentView
           key={`n-${key++}`}
           html={pendingHtml}
           baseStyle={nativeBaseStyle}
           tagsStyles={nativeTagsStyles}
           selectable={selectable}
           themeMode={themeMode}
-          onLinkPress={wrappedOnLinkPress}
-          style={[
-            styles.textSegment,
-            segHeight > 0 ? { height: segHeight } : undefined,
-          ]}
+          onLinkPress={onLinkPress}
+          windowWidth={windowWidth}
+          baseFontSize={baseFontSize}
+          baseLineHeight={baseLineHeight}
+          fontScale={fontScale}
         />
       );
       pendingHtml = '';

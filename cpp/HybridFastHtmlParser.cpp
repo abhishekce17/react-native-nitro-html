@@ -12,6 +12,9 @@
 #include <string>
 #include <functional>
 #include <algorithm>
+#include <mutex>
+#include <list>
+#include <unordered_map>
 
 namespace margelo::nitro::fasthtmlparser {
 
@@ -1102,6 +1105,56 @@ std::string HybridFastHtmlParser::wrapHtmlWithDefaultStyles(
     return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" + styleBlock + "</head><body>" + html + "</body></html>";
 }
 
+// ── Thread-Safe In-Memory LRU AST Cache (Eliminates Duplicate HTML Parsing) ──
+struct AstCacheKey {
+    std::string html;
+    std::string styleSignature;
+
+    bool operator==(const AstCacheKey& other) const {
+        return html == other.html && styleSignature == other.styleSignature;
+    }
+};
+
+struct AstCacheKeyHash {
+    std::size_t operator()(const AstCacheKey& k) const {
+        std::size_t h1 = std::hash<std::string>{}(k.html);
+        std::size_t h2 = std::hash<std::string>{}(k.styleSignature);
+        return h1 ^ (h2 << 1);
+    }
+};
+
+static std::string computeStyleSignature(
+    const std::optional<NativeTextStyle>& baseStyle,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
+) {
+    std::string sig;
+    if (baseStyle.has_value()) {
+        const auto& b = baseStyle.value();
+        if (b.fontSize.has_value()) sig += "fs:" + std::to_string(b.fontSize.value()) + ";";
+        if (b.color.has_value()) sig += "c:" + b.color.value() + ";";
+        if (b.backgroundColor.has_value()) sig += "bg:" + b.backgroundColor.value() + ";";
+        if (b.fontFamily.has_value()) sig += "ff:" + b.fontFamily.value() + ";";
+        if (b.fontWeight.has_value()) sig += "fw:" + b.fontWeight.value() + ";";
+        if (b.fontStyle.has_value()) sig += "fst:" + b.fontStyle.value() + ";";
+        if (b.lineHeight.has_value()) sig += "lh:" + std::to_string(b.lineHeight.value()) + ";";
+    }
+    if (tagsStyles.has_value()) {
+        sig += "ts:" + std::to_string(tagsStyles.value().size()) + ";";
+        for (const auto& pair : tagsStyles.value()) {
+            sig += pair.first + ":";
+            if (pair.second.fontSize.has_value()) sig += std::to_string(pair.second.fontSize.value());
+            if (pair.second.color.has_value()) sig += pair.second.color.value();
+            sig += "|";
+        }
+    }
+    return sig;
+}
+
+static std::mutex sAstCacheMutex;
+static std::list<std::pair<AstCacheKey, std::shared_ptr<HybridParsedArticle>>> sAstLruList;
+static std::unordered_map<AstCacheKey, decltype(sAstLruList)::iterator, AstCacheKeyHash> sAstLruMap;
+constexpr size_t MAX_AST_CACHE_SIZE = 16;
+
 // ── parseInternal ─────────────────────────────────────────────────────────────
 std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
     const std::string& html,
@@ -1110,6 +1163,18 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
 ) {
     if (html.empty()) {
         return std::make_shared<HybridParsedArticle>();
+    }
+
+    AstCacheKey cacheKey { html, computeStyleSignature(baseStyle, tagsStyles) };
+
+    {
+        std::lock_guard<std::mutex> lock(sAstCacheMutex);
+        auto it = sAstLruMap.find(cacheKey);
+        if (it != sAstLruMap.end()) {
+            // Move accessed item to the front of LRU list (0ms cache hit)
+            sAstLruList.splice(sAstLruList.begin(), sAstLruList, it->second);
+            return it->second->second;
+        }
     }
 
     lxb_html_parser_t* parser = lxb_html_parser_create();
@@ -1159,7 +1224,26 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
 
     lxb_html_parser_destroy(parser);
 
-    return std::make_shared<HybridParsedArticle>(std::move(*blocks));
+    auto article = std::make_shared<HybridParsedArticle>(std::move(*blocks));
+
+    {
+        std::lock_guard<std::mutex> lock(sAstCacheMutex);
+        auto it = sAstLruMap.find(cacheKey);
+        if (it != sAstLruMap.end()) {
+            sAstLruList.splice(sAstLruList.begin(), sAstLruList, it->second);
+            return it->second->second;
+        }
+
+        sAstLruList.emplace_front(cacheKey, article);
+        sAstLruMap[cacheKey] = sAstLruList.begin();
+
+        if (sAstLruList.size() > MAX_AST_CACHE_SIZE) {
+            sAstLruMap.erase(sAstLruList.back().first);
+            sAstLruList.pop_back();
+        }
+    }
+
+    return article;
 }
 
 // ── JSON Serialization for AST ───────────────────────────────────────────────
@@ -1291,7 +1375,9 @@ static void contentBlockToJson(const std::shared_ptr<HybridContentBlock>& block,
 
 std::string HybridFastHtmlParser::articleToJson(const std::shared_ptr<HybridParsedArticle>& article) {
     if (!article) return "[]";
-    std::string out = "[";
+    std::string out;
+    out.reserve(std::max<size_t>(1024, article->blocks_.size() * 512));
+    out += "[";
     for (size_t i = 0; i < article->blocks_.size(); ++i) {
         if (i > 0) out += ",";
         contentBlockToJson(article->blocks_[i], out);
