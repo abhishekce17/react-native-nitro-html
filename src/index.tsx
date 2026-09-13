@@ -17,6 +17,8 @@ export {
   getCells,
   getQuoteChildren,
   getDefItems,
+  getTerms,
+  getDefs,
 } from './wrappers';
 
 export type {

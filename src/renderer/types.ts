@@ -72,11 +72,6 @@ export interface FastHtmlViewProps {
   selectable?: boolean;
 
   /**
-   * Force 'light' | 'dark' theme mode or leave 'auto' to adapt to system dark mode.
-   */
-  themeMode?: 'light' | 'dark' | 'auto';
-
-  /**
    * OpenType font feature settings (e.g. '"tnum" 1', '"liga" 1', '"frac" 1').
    */
   fontFeatureSettings?: string;

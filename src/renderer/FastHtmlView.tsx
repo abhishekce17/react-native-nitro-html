@@ -28,7 +28,6 @@ export const NativeHtmlView = getHostComponent<
     selectable: true,
     onLinkPress: true,
     onContentSizeChange: true,
-    themeMode: true,
   },
 }));
 
@@ -48,7 +47,6 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
   baseStyle,
   tagsStyles,
   selectable,
-  themeMode,
   onLinkPress,
   windowWidth,
   baseFontSize,
@@ -59,7 +57,6 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
   baseStyle?: NativeTextStyle;
   tagsStyles?: Record<string, NativeTextStyle>;
   selectable?: boolean;
-  themeMode?: string;
   onLinkPress?: (url: string) => void;
   windowWidth: number;
   baseFontSize: number;
@@ -81,10 +78,9 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
   return (
     <NativeHtmlView
       html={html}
-      baseStyle={baseStyle}
-      tagsStyles={tagsStyles}
+      baseStyle={baseStyle ?? {}}
+      tagsStyles={tagsStyles ?? {}}
       selectable={selectable}
-      themeMode={themeMode}
       onLinkPress={wrappedOnLinkPress}
       onContentSizeChange={wrappedOnContentSizeChange}
       style={[styles.textSegment, height > 0 ? { height } : undefined]}
@@ -115,7 +111,6 @@ export function FastHtmlView({
   tagsStyles,
   renderers,
   selectable = true,
-  themeMode,
   fontFeatureSettings,
   onLinkPress,
   style,
@@ -126,11 +121,11 @@ export function FastHtmlView({
   const baseFontSize = (baseStyle?.fontSize as number) ?? 0;
   const baseLineHeight = (baseStyle?.lineHeight as number) ?? 0;
 
-  const nativeBaseStyle = fontFeatureSettings
-    ? { ...(baseStyle as NativeTextStyle), fontFeatureSettings }
-    : (baseStyle as NativeTextStyle);
-  const nativeTagsStyles = tagsStyles as
-    Record<string, NativeTextStyle> | undefined;
+  const nativeBaseStyle: NativeTextStyle = fontFeatureSettings
+    ? { ...((baseStyle as NativeTextStyle) ?? {}), fontFeatureSettings }
+    : ((baseStyle as NativeTextStyle) ?? {});
+  const nativeTagsStyles: Record<string, NativeTextStyle> =
+    (tagsStyles as Record<string, NativeTextStyle>) ?? {};
   const wrappedOnLinkPress = onLinkPress ? callback(onLinkPress) : undefined;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -156,7 +151,6 @@ export function FastHtmlView({
         baseStyle={nativeBaseStyle}
         tagsStyles={nativeTagsStyles}
         selectable={selectable}
-        themeMode={themeMode}
         onLinkPress={wrappedOnLinkPress}
         onContentSizeChange={wrappedOnContentSizeChange}
         style={[styles.container, height > 0 ? { height } : undefined, style]}
@@ -182,7 +176,6 @@ export function FastHtmlView({
           baseStyle={nativeBaseStyle}
           tagsStyles={nativeTagsStyles}
           selectable={selectable}
-          themeMode={themeMode}
           onLinkPress={onLinkPress}
           windowWidth={windowWidth}
           baseFontSize={baseFontSize}

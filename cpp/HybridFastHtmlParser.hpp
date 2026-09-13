@@ -49,6 +49,7 @@ public:
     bool isStrikethrough_{false};
     bool isLink_{false};
     double baselineShift_{0.0};
+    std::string fontFeatureSettings_{""};
     std::vector<std::shared_ptr<HybridInlineNode>> children_;
 
     HybridInlineNode() : HybridObject("InlineNode"), HybridInlineNodeSpec() {}
@@ -173,6 +174,8 @@ public:
     double paddingRight_{0.0};
     std::string borderLeftColor_{""};
     double borderLeftWidth_{0.0};
+    double borderRadius_{0.0};
+    std::string fontFeatureSettings_{""};
     double opacity_{1.0};
     std::string url_;
     std::string alt_;

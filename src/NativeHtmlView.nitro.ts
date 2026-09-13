@@ -49,7 +49,6 @@ export interface NativeHtmlViewProps extends HybridViewProps {
   selectable?: boolean;
   onLinkPress?: (url: string) => void;
   onContentSizeChange?: (height: number) => void;
-  themeMode?: string;
 }
 
 export interface NativeHtmlViewMethods extends HybridViewMethods {

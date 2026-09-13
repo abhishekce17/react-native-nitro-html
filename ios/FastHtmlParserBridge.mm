@@ -1,6 +1,7 @@
 #import "FastHtmlParserBridge.h"
 #include "HybridFastHtmlParser.hpp"
 #import <UIKit/UIKit.h>
+#import <CoreText/CoreText.h>
 
 using namespace margelo::nitro::fasthtmlparser;
 
@@ -30,24 +31,209 @@ static UIColor* colorFromHexString(const std::string& hex) {
     }
 }
 
-static UIFont* fontFromNodeProps(const std::string& family, double size, const std::string& weight, const std::string& style) {
+static NSString* cleanFontName(NSString *name) {
+    if (!name) return @"";
+    NSString *trimmed = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (([trimmed hasPrefix:@"'"] && [trimmed hasSuffix:@"'"]) ||
+        ([trimmed hasPrefix:@"\""] && [trimmed hasSuffix:@"\""])) {
+        if (trimmed.length >= 2) {
+            trimmed = [trimmed substringWithRange:NSMakeRange(1, trimmed.length - 2)];
+        }
+    }
+    return [trimmed stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static UIFont* fontFromNodeProps(
+    const std::string& family,
+    double size,
+    const std::string& weight,
+    const std::string& style,
+    const std::string& fontFeatureSettings = ""
+) {
     CGFloat ptSize = size > 0 ? static_cast<CGFloat>(size) : 16.0;
     UIFontWeight uiWeight = UIFontWeightRegular;
-    if (weight == "bold" || weight == "700" || weight == "800" || weight == "900") {
+    if (weight == "900" || weight == "black") {
+        uiWeight = UIFontWeightBlack;
+    } else if (weight == "800" || weight == "heavy") {
+        uiWeight = UIFontWeightHeavy;
+    } else if (weight == "700" || weight == "bold") {
         uiWeight = UIFontWeightBold;
-    } else if (weight == "600" || weight == "semibold") {
+    } else if (weight == "600" || weight == "semibold" || weight == "semi-bold") {
         uiWeight = UIFontWeightSemibold;
     } else if (weight == "500" || weight == "medium") {
         uiWeight = UIFontWeightMedium;
+    } else if (weight == "300" || weight == "light") {
+        uiWeight = UIFontWeightLight;
+    } else if (weight == "200" || weight == "ultralight" || weight == "extra-light") {
+        uiWeight = UIFontWeightUltraLight;
+    } else if (weight == "100" || weight == "thin") {
+        uiWeight = UIFontWeightThin;
     }
 
-    if (family == "monospace") {
-        return [UIFont monospacedSystemFontOfSize:ptSize weight:uiWeight];
+    UIFontDescriptorSymbolicTraits traits = 0;
+    if (weight == "bold" || weight == "700" || weight == "800" || weight == "900" || weight == "600" || weight == "semibold" || weight == "heavy" || weight == "black") {
+        traits |= UIFontDescriptorTraitBold;
     }
     if (style == "italic") {
-        return [UIFont italicSystemFontOfSize:ptSize];
+        traits |= UIFontDescriptorTraitItalic;
     }
-    return [UIFont systemFontOfSize:ptSize weight:uiWeight];
+
+    UIFont *baseFont = nil;
+    if (!family.empty()) {
+        NSString *rawFamily = [NSString stringWithUTF8String:family.c_str()];
+        NSArray<NSString *> *candidates = [rawFamily componentsSeparatedByString:@","];
+
+        for (NSString *candRaw in candidates) {
+            NSString *cand = cleanFontName(candRaw);
+            if (cand.length == 0) continue;
+
+            NSString *candLower = [cand lowercaseString];
+            if ([candLower isEqualToString:@"monospace"]) {
+                baseFont = [UIFont monospacedSystemFontOfSize:ptSize weight:uiWeight];
+                break;
+            } else if ([candLower isEqualToString:@"serif"]) {
+                if (@available(iOS 13.0, *)) {
+                    UIFontDescriptor *serifDesc = [[UIFont systemFontOfSize:ptSize weight:uiWeight].fontDescriptor fontDescriptorWithDesign:UIFontDescriptorSystemDesignSerif];
+                    if (serifDesc) {
+                        if (traits != 0) {
+                            UIFontDescriptor *tDesc = [serifDesc fontDescriptorWithSymbolicTraits:traits];
+                            if (tDesc) serifDesc = tDesc;
+                        }
+                        baseFont = [UIFont fontWithDescriptor:serifDesc size:ptSize];
+                    }
+                }
+                if (!baseFont) {
+                    baseFont = [UIFont fontWithName:@"Georgia" size:ptSize];
+                }
+                if (baseFont) break;
+            } else if ([candLower isEqualToString:@"sans-serif"] || [candLower isEqualToString:@"system"] || [candLower isEqualToString:@"system-ui"] || [candLower isEqualToString:@"-apple-system"]) {
+                baseFont = [UIFont systemFontOfSize:ptSize weight:uiWeight];
+                break;
+            } else if ([candLower isEqualToString:@"cursive"]) {
+                baseFont = [UIFont italicSystemFontOfSize:ptSize];
+                if (baseFont) break;
+            } else {
+                // 1. Try direct PostScript / full font name
+                UIFont *customFont = [UIFont fontWithName:cand size:ptSize];
+                if (customFont) {
+                    baseFont = customFont;
+                    if (traits != 0) {
+                        UIFontDescriptor *traitDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:traits];
+                        if (traitDesc) {
+                            UIFont *f = [UIFont fontWithDescriptor:traitDesc size:ptSize];
+                            if (f) baseFont = f;
+                        }
+                    }
+                    break;
+                }
+
+                // 2. Try UIFontDescriptor with UIFontDescriptorFamilyAttribute if family exists
+                NSArray<NSString *> *familyFonts = [UIFont fontNamesForFamilyName:cand];
+                if (familyFonts && familyFonts.count > 0) {
+                    UIFontDescriptor *desc = [UIFontDescriptor fontDescriptorWithFontAttributes:@{
+                        UIFontDescriptorFamilyAttribute: cand
+                    }];
+                    if (traits != 0) {
+                        UIFontDescriptor *traitDesc = [desc fontDescriptorWithSymbolicTraits:traits];
+                        if (traitDesc) desc = traitDesc;
+                    }
+                    if (desc) {
+                        UIFont *descFont = [UIFont fontWithDescriptor:desc size:ptSize];
+                        if (descFont) {
+                            baseFont = descFont;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (!baseFont) {
+        if (style == "italic") {
+            baseFont = [UIFont italicSystemFontOfSize:ptSize];
+        } else {
+            baseFont = [UIFont systemFontOfSize:ptSize weight:uiWeight];
+        }
+    }
+
+    if (style == "italic" && baseFont) {
+        UIFontDescriptor *italicDesc = [baseFont.fontDescriptor fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitItalic];
+        if (italicDesc) {
+            UIFont *italicFont = [UIFont fontWithDescriptor:italicDesc size:ptSize];
+            if (italicFont) {
+                baseFont = italicFont;
+            }
+        }
+    }
+
+    if (!fontFeatureSettings.empty() && baseFont) {
+        NSString *ffs = [NSString stringWithUTF8String:fontFeatureSettings.c_str()];
+        NSMutableArray<NSDictionary *> *features = [NSMutableArray array];
+
+        if ([ffs containsString:@"tnum"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kNumberSpacingType),
+                UIFontFeatureSelectorIdentifierKey: @(kMonospacedNumbersSelector)
+            }];
+        }
+        if ([ffs containsString:@"pnum"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kNumberSpacingType),
+                UIFontFeatureSelectorIdentifierKey: @(kProportionalNumbersSelector)
+            }];
+        }
+        if ([ffs containsString:@"frac"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kFractionsType),
+                UIFontFeatureSelectorIdentifierKey: @(kDiagonalFractionsSelector)
+            }];
+        }
+        if ([ffs containsString:@"smcp"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kLowerCaseType),
+                UIFontFeatureSelectorIdentifierKey: @(kLowerCaseSmallCapsSelector)
+            }];
+        }
+        if ([ffs containsString:@"c2sc"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kUpperCaseType),
+                UIFontFeatureSelectorIdentifierKey: @(kUpperCaseSmallCapsSelector)
+            }];
+        }
+        if ([ffs containsString:@"onum"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kNumberCaseType),
+                UIFontFeatureSelectorIdentifierKey: @(kLowerCaseNumbersSelector)
+            }];
+        }
+        if ([ffs containsString:@"lnum"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kNumberCaseType),
+                UIFontFeatureSelectorIdentifierKey: @(kUpperCaseNumbersSelector)
+            }];
+        }
+        if ([ffs containsString:@"zero"]) {
+            [features addObject:@{
+                UIFontFeatureTypeIdentifierKey: @(kTypographicExtrasType),
+                UIFontFeatureSelectorIdentifierKey: @(kSlashedZeroOnSelector)
+            }];
+        }
+
+        if (features.count > 0) {
+            UIFontDescriptor *featureDesc = [baseFont.fontDescriptor fontDescriptorByAddingAttributes:@{
+                UIFontDescriptorFeatureSettingsAttribute: features
+            }];
+            if (featureDesc) {
+                UIFont *featureFont = [UIFont fontWithDescriptor:featureDesc size:ptSize];
+                if (featureFont) {
+                    baseFont = featureFont;
+                }
+            }
+        }
+    }
+
+    return baseFont;
 }
 
 static NSAttributedString* buildInlineAttributedString(const std::shared_ptr<HybridInlineNode>& node) {
@@ -74,8 +260,8 @@ static NSAttributedString* buildInlineAttributedString(const std::shared_ptr<Hyb
     NSRange fullRange = NSMakeRange(0, result.length);
 
     // Font
-    if (!node->fontFamily_.empty() || node->fontSize_ > 0 || !node->fontWeight_.empty() || !node->fontStyle_.empty()) {
-        UIFont *font = fontFromNodeProps(node->fontFamily_, node->fontSize_, node->fontWeight_, node->fontStyle_);
+    if (!node->fontFamily_.empty() || node->fontSize_ > 0 || !node->fontWeight_.empty() || !node->fontStyle_.empty() || !node->fontFeatureSettings_.empty()) {
+        UIFont *font = fontFromNodeProps(node->fontFamily_, node->fontSize_, node->fontWeight_, node->fontStyle_, node->fontFeatureSettings_);
         if (font) {
             [result addAttribute:NSFontAttributeName value:font range:fullRange];
         }
@@ -194,6 +380,7 @@ static NativeTextStyle nativeTextStyleFromDict(NSDictionary *d) {
     if (d[@"borderRadius"]) s.borderRadius = [d[@"borderRadius"] doubleValue];
     if (d[@"borderLeftColor"]) s.borderLeftColor = std::string([d[@"borderLeftColor"] UTF8String]);
     if (d[@"borderLeftWidth"]) s.borderLeftWidth = [d[@"borderLeftWidth"] doubleValue];
+    if (d[@"fontFeatureSettings"]) s.fontFeatureSettings = std::string([d[@"fontFeatureSettings"] UTF8String]);
     return s;
 }
 
@@ -295,13 +482,11 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
         }
 
         if (block->type_ == "CodeBlock" && !block->code_.empty()) {
-            UIFont *codeFont = fontFromNodeProps(block->fontFamily_, block->fontSize_, block->fontWeight_, block->fontStyle_);
+            UIFont *codeFont = fontFromNodeProps(block->fontFamily_, block->fontSize_, block->fontWeight_, block->fontStyle_, block->fontFeatureSettings_);
             NSMutableDictionary<NSAttributedStringKey, id> *codeAttrs = [NSMutableDictionary dictionary];
             codeAttrs[NSFontAttributeName] = codeFont;
             UIColor *c = colorFromHexString(block->color_);
             if (c) codeAttrs[NSForegroundColorAttributeName] = c;
-            UIColor *bg = colorFromHexString(block->backgroundColor_);
-            if (bg) codeAttrs[NSBackgroundColorAttributeName] = bg;
             NSString *codeStr = [NSString stringWithUTF8String:block->code_.c_str()];
             [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:codeStr attributes:codeAttrs]];
         }
@@ -311,7 +496,7 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                 const auto& item = block->items_[li];
                 if (!item) continue;
                 NSString *prefixStr = block->ordered_ ? [NSString stringWithFormat:@"%zu.  ", li + 1] : @"•  ";
-                UIFont *prefixFont = fontFromNodeProps(block->fontFamily_, block->fontSize_, block->fontWeight_, block->fontStyle_);
+                UIFont *prefixFont = fontFromNodeProps(block->fontFamily_, block->fontSize_, block->fontWeight_, block->fontStyle_, block->fontFeatureSettings_);
                 NSMutableDictionary<NSAttributedStringKey, id> *prefixAttrs = [NSMutableDictionary dictionary];
                 prefixAttrs[NSFontAttributeName] = prefixFont;
                 UIColor *prefixColor = colorFromHexString(block->color_);
@@ -375,7 +560,18 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
             if (!block->backgroundColor_.empty()) {
                 UIColor *bg = colorFromHexString(block->backgroundColor_);
                 if (bg) {
-                    [blockAttr addAttribute:NSBackgroundColorAttributeName value:bg range:NSMakeRange(0, blockAttr.length)];
+                    [blockAttr addAttribute:@"FastHtmlBlockBackground"
+                                      value:@{
+                                          @"color": bg,
+                                          @"borderRadius": @(block->borderRadius_),
+                                          @"paddingLeft": @(block->paddingLeft_),
+                                          @"paddingRight": @(block->paddingRight_),
+                                          @"paddingTop": @(block->paddingTop_),
+                                          @"paddingBottom": @(block->paddingBottom_),
+                                          @"marginLeft": @(block->marginLeft_),
+                                          @"marginRight": @(block->marginRight_)
+                                      }
+                                      range:NSMakeRange(0, blockAttr.length)];
                 }
             }
             if (block->borderLeftWidth_ > 0 && !block->borderLeftColor_.empty()) {
@@ -504,7 +700,8 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                                          @"imageHeight": @(imgHeight),
                                          @"captionHeight": @(capHeight),
                                          @"totalHeight": @(totalH),
-                                         @"aspectRatio": @(aspect)
+                                         @"aspectRatio": @(aspect),
+                                         @"borderRadius": @(block->borderRadius_)
                                      }
                                      range:NSMakeRange(0, imgBlockAttr.length)];
 

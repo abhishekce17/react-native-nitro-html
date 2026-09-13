@@ -18,6 +18,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 import {
   getBlocks,
@@ -34,6 +35,97 @@ import {
   type ContentBlock,
   type ParsedArticle,
 } from 'react-native-fast-html-parser';
+
+// ─── Theme Mode & Palette System ─────────────────────────────────────────────
+
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
+export interface AppTheme {
+  isDark: boolean;
+  background: string;
+  surface: string;
+  cardBg: string;
+  cardBorder: string;
+  headerBg: string;
+  headerSub: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  tabBarBg: string;
+  tabBorder: string;
+  tabInactive: string;
+  accent: string;
+  codeBg: string;
+  codeColor: string;
+  preBg: string;
+  preColor: string;
+  quoteBg: string;
+  quoteBorder: string;
+  tableBorder: string;
+  tableHeaderBg: string;
+  hrColor: string;
+  smallBtnBg: string;
+  smallBtnBorder: string;
+  smallBtnText: string;
+}
+
+export const lightTheme: AppTheme = {
+  isDark: false,
+  background: '#f8fafc',
+  surface: '#ffffff',
+  cardBg: '#ffffff',
+  cardBorder: '#e2e8f0',
+  headerBg: '#7c3aed',
+  headerSub: '#ddd6fe',
+  textPrimary: '#0f172a',
+  textSecondary: '#475569',
+  textMuted: '#64748b',
+  tabBarBg: '#ffffff',
+  tabBorder: '#e2e8f0',
+  tabInactive: '#64748b',
+  accent: '#7c3aed',
+  codeBg: '#e2e8f0',
+  codeColor: '#0f172a',
+  preBg: '#1e293b',
+  preColor: '#38bdf8',
+  quoteBg: '#faf5ff',
+  quoteBorder: '#8b5cf6',
+  tableBorder: '#e2e8f0',
+  tableHeaderBg: '#f1f5f9',
+  hrColor: '#e2e8f0',
+  smallBtnBg: '#f1f5f9',
+  smallBtnBorder: '#cbd5e1',
+  smallBtnText: '#475569',
+};
+
+export const darkTheme: AppTheme = {
+  isDark: true,
+  background: '#090d16',
+  surface: '#111827',
+  cardBg: '#111827',
+  cardBorder: '#1f2937',
+  headerBg: '#1e1b4b',
+  headerSub: '#a5b4fc',
+  textPrimary: '#f9fafb',
+  textSecondary: '#d1d5db',
+  textMuted: '#9ca3af',
+  tabBarBg: '#111827',
+  tabBorder: '#1f2937',
+  tabInactive: '#9ca3af',
+  accent: '#a78bfa',
+  codeBg: '#334155',
+  codeColor: '#f8fafc',
+  preBg: '#020617',
+  preColor: '#38bdf8',
+  quoteBg: '#1e1b4b',
+  quoteBorder: '#818cf8',
+  tableBorder: '#374151',
+  tableHeaderBg: '#1f2937',
+  hrColor: '#374151',
+  smallBtnBg: '#1e293b',
+  smallBtnBorder: '#334155',
+  smallBtnText: '#cbd5e1',
+};
 
 // ─── Shared HTML samples ─────────────────────────────────────────────────────
 
@@ -328,10 +420,100 @@ const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></
 <p>This paragraph is placed directly below the custom React components and continues rendering seamlessly through the high-performance native host view with continuous text selection support!</p>
 `;
 
+const TYPOGRAPHY_HTML = `
+<h1>🖋️ Typography &amp; Font Family Engine</h1>
+<p>Complete real-world React Native font resolution: bundled custom fonts, system generic families, custom font stacks, numeric weights, and OpenType typography features.</p>
+
+<hr />
+
+<h2>1. ✨ Bundled Custom Fonts (assets/fonts &amp; UIAppFonts)</h2>
+<p><b>A. Pacifico Custom Brush Script (&lt;cite&gt; styled via tagsStyles):</b></p>
+<cite>The quick brown fox jumps over the lazy dog. Beautiful fluid handwritten brush script loaded directly from local app assets!</cite>
+
+<p><b>B. Cinzel Monumental Roman Serif (&lt;h3&gt; styled via tagsStyles):</b></p>
+<h3>CLASSICAL MONUMENTAL ROMAN SERIF INSPIRED BY FIRST-CENTURY EPIGRAPHY.</h3>
+
+<hr />
+
+<h2>2. Generic CSS Font Families &amp; Fallback Stacks</h2>
+<p><b>A. Generic Serif (&lt;q&gt; tag styled via tagsStyles):</b></p>
+<q>The quick brown fox jumps over the lazy dog. Classical editorial serif with high contrast and balanced letterforms.</q>
+
+<p><b>B. Generic Sans-Serif (Standard &lt;p&gt; inherited from baseStyle):</b></p>
+<p>The quick brown fox jumps over the lazy dog. Clean, neutral modernist letterforms optimized for high screen legibility.</p>
+
+<p><b>C. Bundled Custom Monospace (&lt;code&gt; tag styled via tagsStyles):</b></p>
+<pre><code>const engine = new FastHtmlParser({ throughput: "204 MB/s", jsi: true });</code></pre>
+
+<p><b>D. CSS Fallback Stack (&lt;em&gt; tag: 'CustomNonExistentFont', 'Georgia', serif):</b></p>
+<p><em>When the first candidate font is unavailable, the C++ and native resolver cleanly steps through the comma-separated fallback chain to Georgia.</em></p>
+
+<hr />
+
+<h2>3. Full Font Weight Spectrum (100 – 900)</h2>
+<p>Toggle <b>baseStyle.fontWeight</b> above or inspect semantic tag weight hierarchy:</p>
+<h5>Weight 300 (Light) — Sub-millisecond Lexbor parsing (&lt;h5&gt;)</h5>
+<p>Weight 400 (Regular/Normal) — TextKit 2 &amp; Android Spannables (&lt;p&gt;)</p>
+<h4>Weight 600 (SemiBold) — 120 FPS buttery smooth scrolling (&lt;h4&gt;)</h4>
+<h3>Weight 700 (Bold) — Native Fabric Host View rendering (&lt;h3&gt;)</h3>
+<h2>Weight 800 (ExtraBold) — Thread-safe HTML5 DOM parser (&lt;h2&gt;)</h2>
+<h1>Weight 900 (Black) — Maximum typographic density (&lt;h1&gt;)</h1>
+
+<hr />
+
+<h2>4. Combined Styles: Bold + Italic + Fonts</h2>
+<blockquote>
+  <p>Georgia Bold Italic: "Design is not just what it looks like and feels like. Design is how it works."</p>
+</blockquote>
+<pre><code>JetBrains Mono Bold: $ git commit -m "feat(font): full typography engine"</code></pre>
+
+<hr />
+
+<h2>5. OpenType Typography Features</h2>
+<p><b>A. Tabular Figures (<code>"tnum" 1</code>) for Numeric Alignment:</b></p>
+<table border="1" cellpadding="6" cellspacing="0">
+  <tr><th>Asset</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr>
+  <tr><td>Nitro Modules JSI</td><td>1,000</td><td>$0.00125</td><td>$1.25</td></tr>
+  <tr><td>Lexbor C++ Parser</td><td>50,000</td><td>$0.00035</td><td>$17.50</td></tr>
+  <tr><td>TextKit 2 Native</td><td>88,888</td><td>$0.00990</td><td>$880.00</td></tr>
+  <tr><td>Total</td><td>139,888</td><td>—</td><td>$898.75</td></tr>
+</table>
+
+<p><b>B. Fractions (<code>"frac" 1</code>):</b></p>
+<p>Bake recipe: 1/2 cup sugar + 3/4 cup milk + 1 1/4 cups flour = 2 1/2 cups batter.</p>
+
+<p><b>C. Small Caps (<code>"smcp" 1</code>):</b></p>
+<p>react-native-fast-html-parser in small caps lettering.</p>
+
+<p><b>D. Slashed Zero (<code>"zero" 1</code>):</b></p>
+<p>Serial ID: 0O0O-8800-ZZ00 (disambiguate zero 0 from letter O).</p>
+
+<hr />
+
+<h2>6. Editorial Blockquote &amp; Definition List</h2>
+<blockquote>
+  <p>"Typography is the craft of endowing human language with a durable visual form."</p>
+  <p>— Robert Bringhurst, The Elements of Typographic Style</p>
+</blockquote>
+
+<hr />
+
+<h2>7. 🎯 3-Tier Cascading Style System (Inline &gt; tagsStyles &gt; baseStyle)</h2>
+<p><b>Tier 1 (baseStyle):</b> This standard paragraph inherits document-wide font, size, and color defaults from <code>baseStyle</code>.</p>
+<cite><b>Tier 2 (tagsStyles):</b> This &lt;cite&gt; block inherits Pacifico brush script and purple color via tagsStyles.</cite>
+<p style="font-family: 'Pacifico-Regular'; color: #ec4899; font-size: 18px; background-color: #fdf2f8; padding: 10px; border-radius: 8px;">
+  <b>Tier 3 (Inline Style):</b> This specific &lt;p&gt; overrides baseStyle and tagsStyles with inline <code>style="font-family: 'Pacifico-Regular'; color: #ec4899;"</code>!
+</p>
+<p>
+  Even within a single paragraph, you can mix styles: standard base font, <span style="font-family: 'Cinzel-Bold'; color: #0284c7; font-weight: bold;">inline Cinzel bold Roman serif</span>, and <span style="color: #10b981; font-weight: 700; font-size: 17px; background-color: #ecfdf5;">inline emerald highlighted text</span>!
+</p>
+`;
+
 // ─── Tab navigation ──────────────────────────────────────────────────────────
 
 const TABS = [
   'All Blocks',
+  'Typography & Fonts',
   'FastHtmlView',
   'Custom Renderers',
   'New Features',
@@ -343,20 +525,61 @@ type Tab = (typeof TABS)[number];
 
 // ─── Tab 0: All Blocks Showcase ──────────────────────────────────────────────
 
-function AllBlocksTab() {
+function AllBlocksTab({ theme }: { theme: AppTheme }) {
+  const baseStyle = useMemo(
+    () => ({
+      color: theme.textPrimary,
+      backgroundColor: theme.cardBg,
+      fontSize: 15,
+      lineHeight: 22,
+    }),
+    [theme]
+  );
+
+  const tagsStyles = useMemo(
+    () => ({
+      h1: { color: theme.isDark ? '#c084fc' : '#6d28d9' },
+      h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
+      h3: { color: theme.isDark ? '#34d399' : '#059669' },
+      code: { backgroundColor: theme.codeBg, color: theme.codeColor },
+      pre: { backgroundColor: theme.preBg, color: theme.preColor },
+      blockquote: {
+        borderLeftColor: theme.quoteBorder,
+        backgroundColor: theme.quoteBg,
+        color: theme.textSecondary,
+      },
+      table: {
+        borderColor: theme.tableBorder,
+        backgroundColor: theme.cardBg,
+      },
+      th: { backgroundColor: theme.tableHeaderBg, color: theme.textPrimary },
+      td: { borderColor: theme.tableBorder, color: theme.textSecondary },
+      hr: { color: theme.hrColor },
+      a: { color: theme.isDark ? '#60a5fa' : '#2563eb' },
+    }),
+    [theme]
+  );
+
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <Text style={styles.sectionLabel}>
+      <Text style={[styles.sectionLabel, { color: theme.accent }]}>
         All HTML Content Blocks &amp; Tags Showcase
       </Text>
-      <Text style={styles.sectionHint}>
+      <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
         Every block type, inline typography, malformed HTML resiliency, props,
         standard &amp; custom attributes rendered 100% natively with pure raw
         HTML.
       </Text>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
         <FastHtmlView
           html={ALL_BLOCKS_HTML}
+          baseStyle={baseStyle}
+          tagsStyles={tagsStyles}
           onLinkPress={(url: string) => Alert.alert('Link Clicked', url)}
         />
       </View>
@@ -364,31 +587,706 @@ function AllBlocksTab() {
   );
 }
 
-// ─── Tab 1: FastHtmlView ─────────────────────────────────────────────────────
+// ─── Tab 1: Typography & Fonts Showcase ──────────────────────────────────────
 
-function RenderedTab() {
+function TypographyTab({ theme }: { theme: AppTheme }) {
+  const [selectedFamily, setSelectedFamily] = useState<string>('System');
+  const [selectedWeight, setSelectedWeight] = useState<
+    '100' | '300' | '400' | '600' | '700' | '900'
+  >('400');
+  const [fontFeature, setFontFeature] = useState<
+    'normal' | 'tnum' | 'frac' | 'smcp' | 'zero'
+  >('normal');
+  const [customTagFonts, setCustomTagFonts] = useState(true);
+
+  const fontFamilies = [
+    { label: 'System', value: 'System' },
+    { label: 'JetBrains Mono (Custom Code Font)', value: 'JetBrainsMono-Bold, JetBrains Mono, monospace' },
+    { label: 'Pacifico (Custom Font)', value: 'Pacifico-Regular, Pacifico, cursive' },
+    { label: 'Cinzel (Custom Font)', value: 'Cinzel-Bold, Cinzel, serif' },
+    { label: 'Georgia', value: 'Georgia' },
+    { label: 'Times New Roman', value: 'Times New Roman' },
+    { label: 'Courier', value: 'Courier' },
+    { label: 'Trebuchet MS', value: 'Trebuchet MS' },
+    { label: 'serif', value: 'serif' },
+    { label: 'monospace', value: 'monospace' },
+    { label: 'sans-serif', value: 'sans-serif' },
+    {
+      label: 'Fallback Stack',
+      value: '"CustomNonExistentFont", "Georgia", serif',
+    },
+  ];
+
+  const baseStyle = useMemo(
+    () => ({
+      color: theme.textPrimary,
+      backgroundColor: theme.cardBg,
+      fontSize: 15,
+      lineHeight: 22,
+      fontFamily: selectedFamily !== 'System' ? selectedFamily : undefined,
+      fontWeight: selectedWeight,
+    }),
+    [theme, selectedFamily, selectedWeight]
+  );
+
+  const tagsStyles: Record<string, any> = useMemo(() => {
+    if (!customTagFonts) {
+      return {
+        h1: { color: theme.isDark ? '#c084fc' : '#6d28d9' },
+        h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
+        h3: { color: theme.isDark ? '#34d399' : '#059669' },
+        h4: { color: theme.isDark ? '#fbbf24' : '#d97706' },
+        h5: { color: theme.isDark ? '#f87171' : '#dc2626' },
+        code: { backgroundColor: theme.codeBg, color: theme.codeColor },
+        pre: { backgroundColor: theme.preBg, color: theme.preColor },
+        blockquote: {
+          borderLeftColor: theme.quoteBorder,
+          backgroundColor: theme.quoteBg,
+          color: theme.textSecondary,
+        },
+        table: {
+          borderColor: theme.tableBorder,
+          backgroundColor: theme.cardBg,
+        },
+        th: { backgroundColor: theme.tableHeaderBg, color: theme.textPrimary },
+        td: { borderColor: theme.tableBorder, color: theme.textSecondary },
+        hr: { color: theme.hrColor },
+        a: { color: theme.isDark ? '#60a5fa' : '#2563eb' },
+      };
+    }
+    return {
+      h1: {
+        color: theme.isDark ? '#c084fc' : '#6d28d9',
+        fontFamily: 'Cinzel-Bold, Cinzel, serif',
+        fontWeight: '900' as const,
+      },
+      h2: {
+        color: theme.isDark ? '#38bdf8' : '#0284c7',
+        fontWeight: '800' as const,
+      },
+      h3: {
+        color: theme.isDark ? '#34d399' : '#059669',
+        fontFamily: 'Cinzel-Bold, Cinzel, serif',
+        fontWeight: '700' as const,
+      },
+      h4: {
+        color: theme.isDark ? '#fbbf24' : '#d97706',
+        fontWeight: '600' as const,
+      },
+      h5: {
+        color: theme.isDark ? '#f87171' : '#dc2626',
+        fontWeight: '300' as const,
+      },
+      cite: {
+        fontFamily: 'Pacifico-Regular, Pacifico, cursive',
+        fontSize: 18,
+        color: theme.isDark ? '#c084fc' : '#8b5cf6',
+      },
+      q: {
+        fontFamily: 'serif',
+        fontSize: 16,
+        color: theme.textSecondary,
+        fontStyle: 'italic' as const,
+      },
+      em: {
+        fontFamily: '"CustomNonExistentFont", "Georgia", serif',
+        fontStyle: 'italic' as const,
+        color: theme.textPrimary,
+      },
+      code: {
+        backgroundColor: theme.codeBg,
+        color: theme.codeColor,
+        fontFamily: 'JetBrainsMono-Bold, JetBrains Mono, monospace',
+        fontWeight: '700' as const,
+      },
+      pre: {
+        backgroundColor: theme.preBg,
+        color: theme.preColor,
+        fontFamily: 'JetBrainsMono-Bold, JetBrains Mono, monospace',
+        paddingLeft: 12,
+      },
+      blockquote: {
+        borderLeftColor: theme.quoteBorder,
+        borderLeftWidth: 4,
+        backgroundColor: theme.quoteBg,
+        paddingLeft: 16,
+        color: theme.textSecondary,
+        fontFamily: 'Georgia, serif',
+        fontStyle: 'italic' as const,
+        fontWeight: '700' as const,
+      },
+      table: {
+        borderColor: theme.tableBorder,
+        backgroundColor: theme.cardBg,
+      },
+      th: {
+        backgroundColor: theme.tableHeaderBg,
+        color: theme.textPrimary,
+        fontWeight: '700' as const,
+      },
+      td: { borderColor: theme.tableBorder, color: theme.textSecondary },
+      dt: {
+        fontFamily: 'JetBrainsMono-Bold, JetBrains Mono, monospace',
+        fontWeight: '700' as const,
+        color: theme.isDark ? '#818cf8' : '#4338ca',
+      },
+      dd: {
+        color: theme.textSecondary,
+        marginLeft: 16,
+      },
+      hr: { color: theme.hrColor },
+      a: { color: theme.isDark ? '#60a5fa' : '#2563eb' },
+    };
+  }, [theme, customTagFonts]);
+
+  const featureString = useMemo(() => {
+    switch (fontFeature) {
+      case 'tnum':
+        return '"tnum" 1';
+      case 'frac':
+        return '"frac" 1';
+      case 'smcp':
+        return '"smcp" 1';
+      case 'zero':
+        return '"zero" 1';
+      default:
+        return undefined;
+    }
+  }, [fontFeature]);
+
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <Text style={styles.sectionLabel}>
-        Using &lt;FastHtmlView html=&#123;RICH_HTML&#125; /&gt;
-      </Text>
-      <Text style={styles.sectionHint}>
-        Pure raw HTML passed directly to NativeHtmlView with zero custom styles
-        or CSS.
-      </Text>
-      <View style={styles.card}>
+      {/* Control Card */}
+      <View
+        style={[
+          styles.card,
+          styles.controlCard,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
+        <Text style={[styles.sectionLabel, { color: theme.accent }]}>
+          Interactive Typography &amp; Font Studio
+        </Text>
+        <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
+          Test font family resolution, weights (100–900), fallback stacks, and OpenType features live.
+        </Text>
+
+        {/* Font Family Selector */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle.fontFamily: {selectedFamily}
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+          <View style={styles.controlRow}>
+            {fontFamilies.map((f) => (
+              <TouchableOpacity
+                key={f.label}
+                style={[
+                  styles.smallBtn,
+                  { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                  selectedFamily === f.value && styles.activeSmallBtn,
+                ]}
+                onPress={() => setSelectedFamily(f.value)}
+              >
+                <Text
+                  style={[
+                    styles.smallBtnText,
+                    { color: theme.smallBtnText },
+                    selectedFamily === f.value && styles.activeSmallBtnText,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Font Weight Selector */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle.fontWeight:
+        </Text>
+        <View style={styles.controlRow}>
+          {(['100', '300', '400', '600', '700', '900'] as const).map((w) => (
+            <TouchableOpacity
+              key={w}
+              style={[
+                styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                selectedWeight === w && styles.activeSmallBtn,
+              ]}
+              onPress={() => setSelectedWeight(w)}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: theme.smallBtnText },
+                  selectedWeight === w && styles.activeSmallBtnText,
+                ]}
+              >
+                {w}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* OpenType Feature Settings */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          fontFeatureSettings:
+        </Text>
+        <View style={styles.controlRow}>
+          {(['normal', 'tnum', 'frac', 'smcp', 'zero'] as const).map((f) => (
+            <TouchableOpacity
+              key={f}
+              style={[
+                styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                fontFeature === f && styles.activeSmallBtn,
+              ]}
+              onPress={() => setFontFeature(f)}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: theme.smallBtnText },
+                  fontFeature === f && styles.activeSmallBtnText,
+                ]}
+              >
+                {f}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Custom Tag Overrides Toggle */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          tagsStyles Tag Font Overrides:
+        </Text>
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              customTagFonts && styles.activeSmallBtn,
+            ]}
+            onPress={() => setCustomTagFonts(true)}
+          >
+            <Text
+              style={[
+                styles.smallBtnText,
+                { color: theme.smallBtnText },
+                customTagFonts && styles.activeSmallBtnText,
+              ]}
+            >
+              ON (Custom Fonts via tagsStyles)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              !customTagFonts && styles.activeSmallBtn,
+            ]}
+            onPress={() => setCustomTagFonts(false)}
+          >
+            <Text
+              style={[
+                styles.smallBtnText,
+                { color: theme.smallBtnText },
+                !customTagFonts && styles.activeSmallBtnText,
+              ]}
+            >
+              OFF (Inherit baseStyle)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Rendered HTML */}
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
         <FastHtmlView
-          html={RICH_HTML}
-          onLinkPress={(url: string) => Alert.alert('onLinkPress', url)}
+          html={TYPOGRAPHY_HTML}
+          baseStyle={baseStyle}
+          tagsStyles={tagsStyles}
+          fontFeatureSettings={featureString}
+          onLinkPress={(url: string) => Alert.alert('Link Clicked', url)}
         />
       </View>
     </ScrollView>
   );
 }
 
+// ─── Tab 2: FastHtmlView (baseStyle & tagsStyles Testbench) ─────────────────
+
+const STYLING_TEST_HTML = `
+<h1>⚡ 1. Headings: &lt;h1&gt; (30px Purple Override)</h1>
+<h2>⚡ 2. Headings: &lt;h2&gt; (22px Sky Blue Override)</h2>
+<h3>⚡ 3. Headings: &lt;h3&gt; (18px Emerald Green Override)</h3>
+<h4>⚡ 4. Headings: &lt;h4&gt; (16px Amber Override)</h4>
+<h5>⚡ 5. Headings: &lt;h5&gt; (14px Crimson Override)</h5>
+<h6>⚡ 6. Headings: &lt;h6&gt; (13px Slate Override)</h6>
+
+<hr />
+
+<h2>7. Paragraph &amp; Inline Phrasing Tags (tagsStyles Override)</h2>
+<p>
+  This paragraph tests <b>baseStyle &amp; tagsStyles</b> across all inline elements:
+  <b>bold (&lt;b&gt;)</b>, <strong>strong (&lt;strong&gt;)</strong>,
+  <i>italic (&lt;i&gt;)</i>, <em>emphasis (&lt;em&gt;)</em>,
+  <u>underline (&lt;u&gt;)</u>, <ins>inserted (&lt;ins&gt;)</ins>,
+  <s>strikethrough (&lt;s&gt;)</s>, <del>deleted (&lt;del&gt;)</del>,
+  <code>inline code (&lt;code&gt; Rose Red)</code>, <mark>mark highlight (&lt;mark&gt;)</mark>,
+  <sub>subscript (&lt;sub&gt;: H<sub>2</sub>O)</sub>,
+  <sup>superscript (&lt;sup&gt;: E=mc<sup>2</sup>)</sup>, and a
+  <a href="https://nitro.margelo.com">Nitro Modules Link (&lt;a&gt;)</a>.<br />
+  A manual line break (&lt;br /&gt;) separates this sentence.
+</p>
+
+<hr />
+
+<h2>8. Blockquote Tag: &lt;blockquote&gt; (Violet 4px Border Override)</h2>
+<blockquote cite="https://nitro.margelo.com">
+  <p><b>"Direct C++ JSI memory bindings eliminate JSON string bridge bottleneck."</b></p>
+  <p>— Margelo Nitro Modules Architecture Doc</p>
+  <blockquote>
+    <p>Nested quote level 2: <i>"Nested blockquotes inherit parent styling and left indentation."</i></p>
+  </blockquote>
+</blockquote>
+
+<hr />
+
+<h2>9. Lists: &lt;ul&gt;, &lt;ol&gt;, &lt;li&gt; (Custom List Spacing)</h2>
+<p><b>Unordered List with Sub-lists:</b></p>
+<ul>
+  <li>Core C++ Lexbor Engine (Sub-millisecond tokenization)</li>
+  <li>Fabric RichText Host Views (TextKit 2 on iOS &amp; Spannables on Android)</li>
+  <li>Nested sub-features:
+    <ul>
+      <li>Zero React Virtual DOM trees for standard HTML</li>
+      <li>Continuous cross-paragraph text selection</li>
+    </ul>
+  </li>
+</ul>
+
+<p><b>Ordered Step List:</b></p>
+<ol>
+  <li>Step 1: HTML string passed to &lt;FastHtmlView /&gt;</li>
+  <li>Step 2: C++ AST resolves baseStyle and tagsStyles in 0.05ms</li>
+  <li>Step 3: Native Fabric view renders text with zero layout shifts</li>
+</ol>
+
+<hr />
+
+<h2>10. CodeBlock: &lt;pre&gt;&lt;code&gt; (Dark Slate Background Override)</h2>
+<pre><code class="language-typescript">// FastHtmlView with baseStyle and tagsStyles
+import { FastHtmlView } from 'react-native-fast-html-parser';
+
+export function StyledArticle({ html }: { html: string }) {
+  return (
+    &lt;FastHtmlView
+      html={html}
+      baseStyle={{ fontSize: 16, color: '#0f172a' }}
+      tagsStyles={{
+        h1: { fontSize: 28, color: '#6d28d9', fontWeight: 'bold' },
+        a: { color: '#2563eb', textDecorationLine: 'underline' },
+        code: { backgroundColor: '#f1f5f9', color: '#e11d48' },
+        blockquote: { borderLeftColor: '#8b5cf6', borderLeftWidth: 4 },
+        table: { borderColor: '#3b82f6', borderWidth: 2 },
+      }}
+    /&gt;
+  );
+}</code></pre>
+
+<hr />
+
+<h2>11. 2D Data Table: &lt;table&gt; (Blue Border Override)</h2>
+<table border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr><th>Layer</th><th>Technology</th><th>Latency</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><b>Parser Core</b></td><td>Lexbor (C++)</td><td><code>0.08 ms</code></td><td>120 FPS</td></tr>
+    <tr><td><b>Bridge</b></td><td>Nitro (JSI)</td><td><code>0.01 ms</code></td><td>120 FPS</td></tr>
+    <tr><td><b>iOS Native</b></td><td>TextKit 2</td><td><code>0.35 ms</code></td><td>120 FPS</td></tr>
+    <tr><td><b>Android Native</b></td><td>Spannables</td><td><code>0.40 ms</code></td><td>120 FPS</td></tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2>12. Definition List: &lt;dl&gt;, &lt;dt&gt;, &lt;dd&gt; (Indigo Term Override)</h2>
+<dl>
+  <dt><b>JSI</b></dt>
+  <dd>JavaScript Interface — direct C++ to JavaScript engine bridge with zero serialization.</dd>
+  <dt><b>Nitro Modules</b></dt>
+  <dd>Next-generation native modules architecture offering direct C++ type bindings.</dd>
+  <dt><b>Lexbor</b></dt>
+  <dd>High-performance thread-safe C HTML5 parser and layout engine.</dd>
+</dl>
+
+<hr />
+
+<h2>13. Media &amp; Figure: &lt;img&gt;, &lt;figure&gt;, &lt;figcaption&gt;</h2>
+<figure>
+  <img src="https://picsum.photos/seed/style-demo/600/200" alt="Demonstration Image" width="100%" />
+  <figcaption><i>Figure 1: Demonstration of native typography with tagsStyles styling overrides.</i></figcaption>
+</figure>
+
+<hr />
+<p>End of All-Block tagsStyles test suite.</p>
+`;
+
+function RenderedTab({ theme }: { theme: AppTheme }) {
+  const [useBaseStyle, setUseBaseStyle] = useState(true);
+  const [useTagsStyles, setUseTagsStyles] = useState(true);
+  const [baseFontSize, setBaseFontSize] = useState<number>(16);
+  const [baseColorTheme, setBaseColorTheme] = useState<'slate' | 'indigo' | 'emerald' | 'crimson'>('slate');
+
+  const colorMap = useMemo(
+    () => ({
+      slate: theme.isDark ? '#f8fafc' : '#0f172a',
+      indigo: theme.isDark ? '#a5b4fc' : '#312e81',
+      emerald: theme.isDark ? '#6ee7b7' : '#064e3b',
+      crimson: theme.isDark ? '#fda4af' : '#881337',
+    }),
+    [theme]
+  );
+
+  const baseStyle = useMemo(() => {
+    if (!useBaseStyle) return undefined;
+    return {
+      fontSize: baseFontSize,
+      color: colorMap[baseColorTheme],
+      backgroundColor: theme.cardBg,
+      lineHeight: baseFontSize * 1.5,
+      fontFamily: 'System',
+      letterSpacing: 0.3,
+    };
+  }, [useBaseStyle, baseFontSize, baseColorTheme, colorMap, theme]);
+
+  const tagsStyles = useMemo(() => {
+    if (!useTagsStyles) return undefined;
+    return {
+      h1: { fontSize: baseFontSize * 1.75, color: theme.isDark ? '#c084fc' : '#6d28d9', fontWeight: 'bold' as const },
+      h2: { fontSize: baseFontSize * 1.4, color: theme.isDark ? '#38bdf8' : '#0284c7', fontWeight: 'bold' as const },
+      h3: { fontSize: baseFontSize * 1.2, color: theme.isDark ? '#34d399' : '#059669', fontWeight: 'bold' as const },
+      h4: { fontSize: baseFontSize * 1.1, color: theme.isDark ? '#fbbf24' : '#d97706', fontWeight: 'bold' as const },
+      h5: { fontSize: baseFontSize * 1.0, color: theme.isDark ? '#f87171' : '#dc2626', fontWeight: 'bold' as const },
+      h6: { fontSize: baseFontSize * 0.9, color: theme.textMuted, fontWeight: 'bold' as const },
+      p: { lineHeight: baseFontSize * 1.5, color: theme.textSecondary },
+      a: { color: theme.isDark ? '#60a5fa' : '#2563eb', textDecorationLine: 'underline' as const },
+      b: { fontWeight: 'bold' as const, color: theme.textPrimary },
+      strong: { fontWeight: 'bold' as const, color: theme.textPrimary },
+      i: { fontStyle: 'italic' as const, color: theme.textSecondary },
+      em: { fontStyle: 'italic' as const, color: theme.textSecondary },
+      code: { backgroundColor: theme.codeBg, color: theme.codeColor, fontFamily: 'monospace' },
+      pre: { backgroundColor: theme.preBg, color: theme.preColor, paddingLeft: 12 },
+      blockquote: {
+        borderLeftColor: theme.quoteBorder,
+        borderLeftWidth: 4,
+        backgroundColor: theme.quoteBg,
+        paddingLeft: 16,
+        fontStyle: 'italic' as const,
+      },
+      table: {
+        borderColor: theme.tableBorder,
+        borderWidth: 1.5,
+        backgroundColor: theme.cardBg,
+      },
+      dl: { marginBottom: 12 },
+      dt: { fontWeight: 'bold' as const, color: theme.isDark ? '#818cf8' : '#4338ca' },
+      dd: { color: theme.textSecondary, marginLeft: 16 },
+      hr: { color: theme.hrColor, marginTop: 16, marginBottom: 16 },
+      img: { backgroundColor: theme.cardBg },
+    };
+  }, [useTagsStyles, baseFontSize, theme]);
+
+  return (
+    <ScrollView contentContainerStyle={styles.tabContent}>
+      {/* Interactive Controls Card */}
+      <View
+        style={[
+          styles.card,
+          styles.controlCard,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
+        <Text style={[styles.sectionLabel, { color: theme.accent }]}>
+          baseStyle &amp; tagsStyles Controller
+        </Text>
+        <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
+          Test live prop propagation across all supported block tags and inline styles.
+        </Text>
+
+        {/* baseStyle Toggle */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle Enabled:
+        </Text>
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              useBaseStyle && styles.activeSmallBtn,
+            ]}
+            onPress={() => setUseBaseStyle(true)}
+          >
+            <Text
+              style={[
+                styles.smallBtnText,
+                { color: theme.smallBtnText },
+                useBaseStyle && styles.activeSmallBtnText,
+              ]}
+            >
+              ENABLE baseStyle
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              !useBaseStyle && styles.activeSmallBtn,
+            ]}
+            onPress={() => setUseBaseStyle(false)}
+          >
+            <Text
+              style={[
+                styles.smallBtnText,
+                { color: theme.smallBtnText },
+                !useBaseStyle && styles.activeSmallBtnText,
+              ]}
+            >
+              DISABLE (Raw Default)
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* tagsStyles Toggle */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          tagsStyles (All Blocks Override):
+        </Text>
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              useTagsStyles && styles.activeSmallBtn,
+            ]}
+            onPress={() => setUseTagsStyles(true)}
+          >
+            <Text
+              style={[
+                styles.smallBtnText,
+                { color: theme.smallBtnText },
+                useTagsStyles && styles.activeSmallBtnText,
+              ]}
+            >
+              ENABLE tagsStyles (All 13 Blocks)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+              !useTagsStyles && styles.activeSmallBtn,
+            ]}
+            onPress={() => setUseTagsStyles(false)}
+          >
+            <Text
+              style={[
+                styles.smallBtnText,
+                { color: theme.smallBtnText },
+                !useTagsStyles && styles.activeSmallBtnText,
+              ]}
+            >
+              DISABLE tagsStyles
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Base Font Size Toggle */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle.fontSize:
+        </Text>
+        <View style={styles.controlRow}>
+          {([14, 16, 18, 20] as const).map((sz) => (
+            <TouchableOpacity
+              key={sz}
+              style={[
+                styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                baseFontSize === sz && styles.activeSmallBtn,
+              ]}
+              onPress={() => setBaseFontSize(sz)}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: theme.smallBtnText },
+                  baseFontSize === sz && styles.activeSmallBtnText,
+                ]}
+              >
+                {sz}px
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Base Color Theme */}
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          baseStyle.color Theme:
+        </Text>
+        <View style={styles.controlRow}>
+          {(['slate', 'indigo', 'emerald', 'crimson'] as const).map((colorName) => (
+            <TouchableOpacity
+              key={colorName}
+              style={[
+                styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
+                baseColorTheme === colorName && styles.activeSmallBtn,
+              ]}
+              onPress={() => setBaseColorTheme(colorName)}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: theme.smallBtnText },
+                  baseColorTheme === colorName && styles.activeSmallBtnText,
+                ]}
+              >
+                {colorName.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Rendered FastHtmlView */}
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
+        <FastHtmlView
+          html={STYLING_TEST_HTML}
+          baseStyle={baseStyle}
+          tagsStyles={tagsStyles}
+          onLinkPress={(url: string) => Alert.alert('Link Clicked', url)}
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+
 // ─── Tab: Custom Renderers ───────────────────────────────────────────────────
 
-function CustomRenderersTab() {
+function CustomRenderersTab({ theme }: { theme: AppTheme }) {
   const [pollVotes, setPollVotes] = useState<Record<string, number>>({
     'Compiled C++ (Lexbor)': 42,
     '100% Native Fabric View': 38,
@@ -410,16 +1308,31 @@ function CustomRenderersTab() {
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <Text style={styles.sectionLabel}>
+      <Text style={[styles.sectionLabel, { color: theme.accent }]}>
         Custom Component Renderer Injection
       </Text>
-      <Text style={styles.sectionHint}>
+      <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
         Demonstrating custom interactive CodeBlocks, Video Players, and custom
         widget elements injected directly into the native rendering stream.
       </Text>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
         <FastHtmlView
           html={CUSTOM_HTML}
+          baseStyle={{
+            color: theme.textPrimary,
+            backgroundColor: theme.cardBg,
+            fontSize: 15,
+            lineHeight: 22,
+          }}
+          tagsStyles={{
+            p: { color: theme.textSecondary },
+            h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
+          }}
           renderers={{
             'CodeBlock': ({ block }: { block: ContentBlock }) => (
               <View style={styles.customCodeBox}>
@@ -470,8 +1383,21 @@ function CustomRenderersTab() {
               </View>
             ),
             'custom-poll': ({ block }: { block: ContentBlock }) => (
-              <View style={styles.customPollContainer}>
-                <Text style={styles.customPollTitle}>
+              <View
+                style={[
+                  styles.customPollContainer,
+                  {
+                    backgroundColor: theme.isDark ? '#1e293b' : '#f8fafc',
+                    borderColor: theme.cardBorder,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.customPollTitle,
+                    { color: theme.textPrimary },
+                  ]}
+                >
                   📊 {block.title || 'Community Poll'}
                 </Text>
                 {Object.entries(pollVotes).map(([option, count]) => {
@@ -486,6 +1412,10 @@ function CustomRenderersTab() {
                       key={option}
                       style={[
                         styles.customPollOption,
+                        {
+                          backgroundColor: theme.isDark ? '#0f172a' : '#ffffff',
+                          borderColor: theme.cardBorder,
+                        },
                         isSelected && styles.customPollOptionSelected,
                       ]}
                       onPress={() => handleVote(option)}
@@ -493,13 +1423,19 @@ function CustomRenderersTab() {
                       <View
                         style={[
                           styles.customPollBar,
-                          { width: `${pct}%` },
+                          {
+                            width: `${pct}%`,
+                            backgroundColor: theme.isDark
+                              ? '#334155'
+                              : '#f1f5f9',
+                          },
                           isSelected && styles.customPollBarSelected,
                         ]}
                       />
                       <Text
                         style={[
                           styles.customPollText,
+                          { color: theme.textPrimary },
                           isSelected && styles.customPollTextSelected,
                         ]}
                       >
@@ -508,6 +1444,7 @@ function CustomRenderersTab() {
                       <Text
                         style={[
                           styles.customPollCount,
+                          { color: theme.textMuted },
                           isSelected && styles.customPollCountSelected,
                         ]}
                       >
@@ -529,11 +1466,12 @@ function CustomRenderersTab() {
 // ─── Tab 2: New Features (All 11 Optimizations) ──────────────────────────────
 
 function NewFeaturesTab({
+  theme,
   parsedAst: _parsedAst,
 }: {
+  theme: AppTheme;
   parsedAst: ParsedArticle | null;
 }) {
-  const [themeMode, setThemeMode] = useState<'auto' | 'light' | 'dark'>('auto');
   const [fontFeature, setFontFeature] = useState<
     'normal' | 'tnum' | 'frac' | 'smcp'
   >('tnum');
@@ -553,43 +1491,28 @@ function NewFeaturesTab({
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
       {/* Controls Card */}
-      <View style={[styles.card, styles.controlCard]}>
-        <Text style={styles.sectionLabel}>Live Optimizations Engine</Text>
-
-        {/* Theme Mode Toggle */}
-        <Text style={styles.controlLabel}>
-          Native Dynamic Color / Dark Mode:
+      <View
+        style={[
+          styles.card,
+          styles.controlCard,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
+        <Text style={[styles.sectionLabel, { color: theme.accent }]}>
+          Live Optimizations Engine
         </Text>
-        <View style={styles.controlRow}>
-          {(['auto', 'light', 'dark'] as const).map((m) => (
-            <TouchableOpacity
-              key={m}
-              style={[
-                styles.smallBtn,
-                themeMode === m && styles.activeSmallBtn,
-              ]}
-              onPress={() => setThemeMode(m)}
-            >
-              <Text
-                style={[
-                  styles.smallBtnText,
-                  themeMode === m && styles.activeSmallBtnText,
-                ]}
-              >
-                {m.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         {/* OpenType Features Toggle */}
-        <Text style={styles.controlLabel}>OpenType Typography Features:</Text>
+        <Text style={[styles.controlLabel, { color: theme.textSecondary }]}>
+          OpenType Typography Features:
+        </Text>
         <View style={styles.controlRow}>
           {(['normal', 'tnum', 'frac', 'smcp'] as const).map((f) => (
             <TouchableOpacity
               key={f}
               style={[
                 styles.smallBtn,
+                { backgroundColor: theme.smallBtnBg, borderColor: theme.smallBtnBorder },
                 fontFeature === f && styles.activeSmallBtn,
               ]}
               onPress={() => setFontFeature(f)}
@@ -597,6 +1520,7 @@ function NewFeaturesTab({
               <Text
                 style={[
                   styles.smallBtnText,
+                  { color: theme.smallBtnText },
                   fontFeature === f && styles.activeSmallBtnText,
                 ]}
               >
@@ -622,10 +1546,35 @@ function NewFeaturesTab({
 
       {/* Rendered HTML */}
       <View
-        style={[styles.card, themeMode === 'dark' ? styles.cardDark : null]}
+        style={[
+          styles.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
       >
         <FastHtmlView
           html={NEW_FEATURES_HTML}
+          baseStyle={{
+            color: theme.textPrimary,
+            backgroundColor: theme.cardBg,
+            fontSize: 15,
+            lineHeight: 22,
+          }}
+          tagsStyles={{
+            h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
+            h3: { color: theme.isDark ? '#34d399' : '#059669' },
+            p: { color: theme.textSecondary },
+            th: { backgroundColor: theme.tableHeaderBg, color: theme.textPrimary },
+            td: { borderColor: theme.tableBorder, color: theme.textSecondary },
+          }}
+          fontFeatureSettings={
+            fontFeature === 'tnum'
+              ? '"tnum" 1'
+              : fontFeature === 'frac'
+                ? '"frac" 1'
+                : fontFeature === 'smcp'
+                  ? '"smcp" 1'
+                  : undefined
+          }
           onLinkPress={(url: string) => Alert.alert('Link Press', url)}
         />
       </View>
@@ -635,10 +1584,10 @@ function NewFeaturesTab({
 
 // ─── Tab 3: Infinite Scale (Long Document) ───────────────────────────────────
 
-function InfiniteScaleTab() {
+function InfiniteScaleTab({ theme }: { theme: AppTheme }) {
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <View style={styles.virtualHeader}>
+      <View style={[styles.virtualHeader, { backgroundColor: theme.accent }]}>
         <Text style={styles.virtualHeaderTitle}>
           Infinite Scale FastHtmlView
         </Text>
@@ -646,9 +1595,32 @@ function InfiniteScaleTab() {
           40 Sections · 0 React VDOM Nodes · 100% Native Viewport Layout
         </Text>
       </View>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+        ]}
+      >
         <FastHtmlView
           html={LONG_HTML}
+          baseStyle={{
+            color: theme.textPrimary,
+            backgroundColor: theme.cardBg,
+            fontSize: 15,
+            lineHeight: 22,
+          }}
+          tagsStyles={{
+            h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
+            h3: { color: theme.isDark ? '#34d399' : '#059669' },
+            p: { color: theme.textSecondary },
+            code: { backgroundColor: theme.codeBg, color: theme.codeColor },
+            blockquote: {
+              borderLeftColor: theme.quoteBorder,
+              backgroundColor: theme.quoteBg,
+              color: theme.textSecondary,
+            },
+            hr: { color: theme.hrColor },
+          }}
           onLinkPress={(url: string) => Alert.alert('Link Clicked', url)}
         />
       </View>
@@ -656,14 +1628,20 @@ function InfiniteScaleTab() {
   );
 }
 
-// ─── Tab 3: Wrappers ─────────────────────────────────────────────────────────
+// ─── Tab 4: Wrappers ─────────────────────────────────────────────────────────
 
 interface WrapperRow {
   label: string;
   value: string;
 }
 
-function WrappersTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
+function WrappersTab({
+  theme,
+  parsedAst,
+}: {
+  theme: AppTheme;
+  parsedAst: ParsedArticle | null;
+}) {
   const rows = useMemo<WrapperRow[]>(() => {
     if (!parsedAst) return [];
 
@@ -768,25 +1746,43 @@ function WrappersTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
 
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
-      <Text style={styles.sectionLabel}>AST Traversal Wrappers</Text>
-      <Text style={styles.sectionHint}>
+      <Text style={[styles.sectionLabel, { color: theme.accent }]}>
+        AST Traversal Wrappers
+      </Text>
+      <Text style={[styles.sectionHint, { color: theme.textMuted }]}>
         getBlocks · getChildren · getItems · getNestedBlocks · getRows ·
         getCells · getQuoteChildren · getDefItems — all called on the same
         ParsedArticle.
       </Text>
       {rows.map((row, i) => (
-        <View key={i} style={styles.wrapperRow}>
-          <Text style={styles.wrapperLabel}>{row.label}</Text>
-          <Text style={styles.wrapperValue}>{row.value}</Text>
+        <View
+          key={i}
+          style={[
+            styles.wrapperRow,
+            { backgroundColor: theme.cardBg, borderColor: theme.cardBorder },
+          ]}
+        >
+          <Text style={[styles.wrapperLabel, { color: theme.textSecondary }]}>
+            {row.label}
+          </Text>
+          <Text style={[styles.wrapperValue, { color: theme.accent }]}>
+            {row.value}
+          </Text>
         </View>
       ))}
     </ScrollView>
   );
 }
 
-// ─── Tab 4: AST JSON Tree ───────────────────────────────────────────────────
+// ─── Tab 5: AST JSON Tree ───────────────────────────────────────────────────
 
-function JsonTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
+function JsonTab({
+  theme,
+  parsedAst,
+}: {
+  theme: AppTheme;
+  parsedAst: ParsedArticle | null;
+}) {
   const blocks = useMemo(() => getBlocks(parsedAst), [parsedAst]);
 
   const displayJson = useMemo(() => {
@@ -809,7 +1805,12 @@ function JsonTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
   }, [blocks]);
 
   return (
-    <View style={styles.jsonTab}>
+    <View
+      style={[
+        styles.jsonTab,
+        { backgroundColor: theme.isDark ? '#090d16' : '#0f172a' },
+      ]}
+    >
       {/* Description */}
       <Text style={styles.jsonDesc}>
         Inspecting parsed AST blocks and inline nodes extracted natively by C++
@@ -830,24 +1831,62 @@ function JsonTab({ parsedAst }: { parsedAst: ParsedArticle | null }) {
 // ─── Root App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('All Blocks');
+  const [activeTab, setActiveTab] = useState<Tab>('Typography & Fonts');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+  const systemColorScheme = useColorScheme();
+
+  const isDark =
+    themeMode === 'dark' || (themeMode === 'auto' && systemColorScheme === 'dark');
+  const theme = isDark ? darkTheme : lightTheme;
+
+  const cycleThemeMode = useCallback(() => {
+    setThemeMode((prev) => {
+      if (prev === 'light') return 'dark';
+      if (prev === 'dark') return 'auto';
+      return 'light';
+    });
+  }, []);
 
   // Parse once — shared across tabs
   const parsedAst = useMemo(() => parseHTML(RICH_HTML), []);
   const blockCount = useMemo(() => getBlocks(parsedAst).length, [parsedAst]);
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>react-native-fast-html-parser</Text>
-        <Text style={styles.headerSub}>
-          {blockCount} blocks · C++ (Lexbor) core · 100% Native FastHtmlView
-        </Text>
+      <View style={[styles.header, { backgroundColor: theme.headerBg }]}>
+        <View style={styles.headerTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>react-native-fast-html-parser</Text>
+            <Text style={[styles.headerSub, { color: theme.headerSub }]}>
+              {blockCount} blocks · C++ (Lexbor) core · 100% Native FastHtmlView
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.themeToggleBtn}
+            onPress={cycleThemeMode}
+          >
+            <Text style={styles.themeToggleText}>
+              {themeMode === 'light'
+                ? '☀️ Light'
+                : themeMode === 'dark'
+                  ? '🌙 Dark'
+                  : '⚙️ Auto'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Tab bar */}
-      <View style={styles.tabBarWrapper}>
+      <View
+        style={[
+          styles.tabBarWrapper,
+          {
+            backgroundColor: theme.tabBarBg,
+            borderBottomColor: theme.tabBorder,
+          },
+        ]}
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -856,13 +1895,20 @@ export default function App() {
           {TABS.map((tab) => (
             <TouchableOpacity
               key={tab}
-              style={[styles.tabBtn, activeTab === tab && styles.activeTabBtn]}
+              style={[
+                styles.tabBtn,
+                activeTab === tab && {
+                  borderBottomWidth: 2,
+                  borderBottomColor: theme.accent,
+                },
+              ]}
               onPress={() => setActiveTab(tab)}
             >
               <Text
                 style={[
                   styles.tabBtnText,
-                  activeTab === tab && styles.activeTabBtnText,
+                  { color: theme.tabInactive },
+                  activeTab === tab && { color: theme.accent, fontWeight: '700' },
                 ]}
               >
                 {tab}
@@ -874,15 +1920,20 @@ export default function App() {
 
       {/* Active tab */}
       <View style={styles.tabBody}>
-        {activeTab === 'All Blocks' && <AllBlocksTab />}
-        {activeTab === 'FastHtmlView' && <RenderedTab />}
-        {activeTab === 'Custom Renderers' && <CustomRenderersTab />}
-        {activeTab === 'New Features' && (
-          <NewFeaturesTab parsedAst={parsedAst} />
+        {activeTab === 'All Blocks' && <AllBlocksTab theme={theme} />}
+        {activeTab === 'Typography & Fonts' && <TypographyTab theme={theme} />}
+        {activeTab === 'FastHtmlView' && <RenderedTab theme={theme} />}
+        {activeTab === 'Custom Renderers' && (
+          <CustomRenderersTab theme={theme} />
         )}
-        {activeTab === 'Infinite Scale' && <InfiniteScaleTab />}
-        {activeTab === 'Wrappers' && <WrappersTab parsedAst={parsedAst} />}
-        {activeTab === 'JSON' && <JsonTab parsedAst={parsedAst} />}
+        {activeTab === 'New Features' && (
+          <NewFeaturesTab theme={theme} parsedAst={parsedAst} />
+        )}
+        {activeTab === 'Infinite Scale' && <InfiniteScaleTab theme={theme} />}
+        {activeTab === 'Wrappers' && (
+          <WrappersTab theme={theme} parsedAst={parsedAst} />
+        )}
+        {activeTab === 'JSON' && <JsonTab theme={theme} parsedAst={parsedAst} />}
       </View>
     </SafeAreaView>
   );
@@ -902,6 +1953,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
   },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerTitle: {
     fontSize: 16,
     fontWeight: '800',
@@ -912,6 +1968,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ddd6fe',
     marginTop: 2,
+  },
+  themeToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    marginLeft: 8,
+  },
+  themeToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 
   // Tab bar
@@ -1314,8 +2384,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 10,
-  },
-  cardDark: {
-    backgroundColor: '#1e293b',
   },
 });

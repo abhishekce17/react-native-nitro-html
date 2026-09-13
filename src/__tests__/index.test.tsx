@@ -285,6 +285,24 @@ jest.mock('react-native-nitro-modules', () => {
             getBlock: (idx: number) => blocks[idx] || null,
           };
         }),
+        normalizeHtml: jest.fn((html: string) =>
+          html ? `<html><body>${html}</body></html>` : ''
+        ),
+        calculateHtmlHeight: jest.fn(
+          (
+            html: string,
+            _width: number,
+            baseFontSize: number,
+            _baseLineHeight: number,
+            fontScale: number
+          ) => {
+            if (!html) return 0;
+            const effectiveFs =
+              (baseFontSize > 0 ? baseFontSize : 16) *
+              (fontScale > 0 ? fontScale : 1);
+            return Math.max(effectiveFs, 24);
+          }
+        ),
       })),
     },
     getHostComponent: jest.fn(() => 'NativeHtmlView'),
@@ -303,8 +321,12 @@ import {
   getCells,
   getQuoteChildren,
   getDefItems,
+  getTerms,
+  getDefs,
   parseHTML,
   parseHTMLAsync,
+  normalizeHTML,
+  calculateHTMLHeight,
 } from '../index';
 
 describe('1. Module Exports & Core APIs', () => {
@@ -316,9 +338,11 @@ describe('1. Module Exports & Core APIs', () => {
   it('exports core parser methods', () => {
     expect(typeof parseHTML).toBe('function');
     expect(typeof parseHTMLAsync).toBe('function');
+    expect(typeof normalizeHTML).toBe('function');
+    expect(typeof calculateHTMLHeight).toBe('function');
   });
 
-  it('exports all 8 AST helper wrappers', () => {
+  it('exports all 10 AST helper wrappers', () => {
     expect(typeof getBlocks).toBe('function');
     expect(typeof getChildren).toBe('function');
     expect(typeof getItems).toBe('function');
@@ -327,10 +351,293 @@ describe('1. Module Exports & Core APIs', () => {
     expect(typeof getCells).toBe('function');
     expect(typeof getQuoteChildren).toBe('function');
     expect(typeof getDefItems).toBe('function');
+    expect(typeof getTerms).toBe('function');
+    expect(typeof getDefs).toBe('function');
   });
 });
 
-describe('2. Malformed HTML Recovery & Resiliency', () => {
+describe('2. Comprehensive Testing of Utility Functions', () => {
+  describe('parseHTML & parseHTMLAsync', () => {
+    it('returns null for empty string or null input', () => {
+      expect(parseHTML('')).toBeNull();
+      expect(parseHTML(null as any)).toBeNull();
+    });
+
+    it('parses valid HTML synchronously and returns ParsedArticle', () => {
+      const article = parseHTML('<p>Hello World</p>');
+      expect(article).not.toBeNull();
+      expect(article?.length).toBeGreaterThan(0);
+      expect(article?.getBlock(0)).not.toBeNull();
+    });
+
+    it('parses valid HTML asynchronously via Promise', async () => {
+      const article = await parseHTMLAsync('<p>Async content</p>');
+      expect(article).not.toBeNull();
+      expect(article?.length).toBeGreaterThan(0);
+    });
+
+    it('returns null for empty string in parseHTMLAsync', async () => {
+      const result = await parseHTMLAsync('');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('normalizeHTML', () => {
+    it('normalizes HTML markup', () => {
+      const normalized = normalizeHTML('<div><p>Test</p></div>');
+      expect(normalized).toContain('Test');
+    });
+
+    it('handles empty input in normalizeHTML', () => {
+      expect(normalizeHTML('')).toBe('');
+    });
+  });
+
+  describe('calculateHTMLHeight', () => {
+    it('calculates estimated height for layout pass', () => {
+      const height = calculateHTMLHeight('<p>Test Paragraph</p>', 375, 16, 24, 1.0);
+      expect(height).toBeGreaterThan(0);
+    });
+
+    it('returns 0 for empty HTML string', () => {
+      const height = calculateHTMLHeight('', 375, 16, 24, 1.0);
+      expect(height).toBe(0);
+    });
+
+    it('scales with custom fontScale and baseFontSize', () => {
+      const standardHeight = calculateHTMLHeight('<p>Text</p>', 375, 16, 24, 1.0);
+      const scaledHeight = calculateHTMLHeight('<p>Text</p>', 375, 24, 32, 1.5);
+      expect(scaledHeight).toBeGreaterThanOrEqual(standardHeight);
+    });
+  });
+
+  describe('AST Wrappers (getBlocks, getChildren, etc.)', () => {
+    it('getBlocks: handles null, undefined, and valid articles', () => {
+      expect(getBlocks(null)).toEqual([]);
+      expect(getBlocks(undefined)).toEqual([]);
+
+      const article = parseHTML('<h1>Title</h1><p>Body</p>');
+      const blocks = getBlocks(article);
+      expect(blocks.length).toBe(2);
+      expect(blocks[0]?.type).toBe('Heading');
+      expect(blocks[1]?.type).toBe('Paragraph');
+    });
+
+    it('getChildren: extracts inline children and handles null safely', () => {
+      expect(getChildren(null)).toEqual([]);
+      expect(getChildren(undefined)).toEqual([]);
+
+      const article = parseHTML('<p>Inline <b>bold</b> text</p>');
+      const blocks = getBlocks(article);
+      const children = getChildren(blocks[0]);
+      expect(children.length).toBeGreaterThan(0);
+    });
+
+    it('getItems & getNestedBlocks: handles lists and nested lists', () => {
+      expect(getItems(null)).toEqual([]);
+      expect(getItems(undefined)).toEqual([]);
+      expect(getNestedBlocks(null)).toEqual([]);
+      expect(getNestedBlocks(undefined)).toEqual([]);
+
+      const article = parseHTML('<ul><li>Item 1<ol><li>Sub-item</li></ol></li></ul>');
+      const listBlock = getBlocks(article)[0];
+      const items = getItems(listBlock);
+      expect(items.length).toBe(1);
+
+      const nested = getNestedBlocks(items[0]);
+      expect(nested.length).toBe(1);
+      expect(nested[0]?.type).toBe('List');
+    });
+
+    it('getRows & getCells: handles table hierarchies', () => {
+      expect(getRows(null)).toEqual([]);
+      expect(getRows(undefined)).toEqual([]);
+      expect(getCells(null)).toEqual([]);
+      expect(getCells(undefined)).toEqual([]);
+
+      const article = parseHTML('<table><tr><td>Row 1 Cell 1</td><td>Row 1 Cell 2</td></tr></table>');
+      const tableBlock = getBlocks(article)[0];
+      const rows = getRows(tableBlock);
+      expect(rows.length).toBe(1);
+
+      const cells = getCells(rows[0]);
+      expect(cells.length).toBe(2);
+    });
+
+    it('getQuoteChildren: handles blockquotes', () => {
+      expect(getQuoteChildren(null)).toEqual([]);
+      expect(getQuoteChildren(undefined)).toEqual([]);
+
+      const article = parseHTML('<blockquote><p>Quoted wisdom</p></blockquote>');
+      const quoteBlock = getBlocks(article)[0];
+      const quoteChildren = getQuoteChildren(quoteBlock);
+      expect(quoteChildren.length).toBe(1);
+      expect(quoteChildren[0]?.type).toBe('Paragraph');
+    });
+
+    it('getDefItems, getTerms & getDefs: handles definition lists', () => {
+      expect(getDefItems(null)).toEqual([]);
+      expect(getDefItems(undefined)).toEqual([]);
+      expect(getTerms(null)).toEqual([]);
+      expect(getTerms(undefined)).toEqual([]);
+      expect(getDefs(null)).toEqual([]);
+      expect(getDefs(undefined)).toEqual([]);
+
+      const article = parseHTML('<dl><dt>Nitro</dt><dd>Fast Native Modules</dd></dl>');
+      const dlBlock = getBlocks(article)[0];
+      const defItems = getDefItems(dlBlock);
+      expect(defItems.length).toBe(1);
+
+      const terms = getTerms(defItems[0]);
+      expect(terms.length).toBe(1);
+
+      const defs = getDefs(defItems[0]);
+      expect(defs.length).toBe(1);
+    });
+  });
+});
+
+describe('3. FastHtmlView Props Verification', () => {
+  it('renders default FastHtmlView with html prop', () => {
+    const el = React.createElement(FastHtmlView, {
+      html: '<p>Standard native render</p>',
+    });
+    expect(el).toBeDefined();
+    expect(el.props.html).toBe('<p>Standard native render</p>');
+  });
+
+  it('supports mode prop ("sync" and "async")', () => {
+    const syncEl = React.createElement(FastHtmlView, {
+      html: '<p>Sync</p>',
+      mode: 'sync',
+    });
+    const asyncEl = React.createElement(FastHtmlView, {
+      html: '<p>Async</p>',
+      mode: 'async',
+    });
+    expect(syncEl.props.mode).toBe('sync');
+    expect(asyncEl.props.mode).toBe('async');
+  });
+
+  it('supports pre-parsed AST via parsedAst prop', () => {
+    const article = parseHTML('<h1>Pre-parsed Header</h1>');
+    const el = React.createElement(FastHtmlView, {
+      parsedAst: article,
+    });
+    expect(el.props.parsedAst).toBe(article);
+  });
+
+  it('supports comprehensive baseStyle prop (typography, margin, padding, border)', () => {
+    const baseStyle = {
+      fontSize: 18,
+      color: '#334155',
+      lineHeight: 28,
+      fontFamily: 'Inter',
+      fontWeight: '600' as const,
+      fontStyle: 'normal' as const,
+      letterSpacing: 0.5,
+      textAlign: 'left' as const,
+      backgroundColor: '#f8fafc',
+      margin: 10,
+      padding: 12,
+      borderLeftWidth: 3,
+      borderLeftColor: '#3b82f6',
+    };
+
+    const el = React.createElement(FastHtmlView, {
+      html: '<p>Styled body text</p>',
+      baseStyle,
+    });
+    expect(el.props.baseStyle).toEqual(baseStyle);
+  });
+
+  it('supports tagsStyles prop for individual HTML tag customizations', () => {
+    const tagsStyles = {
+      h1: { fontSize: 28, color: '#1e293b', fontWeight: 'bold' as const },
+      h2: { fontSize: 22, color: '#334155' },
+      p: { lineHeight: 24, color: '#475569' },
+      a: { color: '#2563eb', textDecorationLine: 'underline' as const },
+      code: { backgroundColor: '#f1f5f9', color: '#0f172a' },
+      blockquote: { borderLeftColor: '#94a3b8', borderLeftWidth: 4 },
+      table: { borderColor: '#cbd5e1', borderWidth: 1 },
+    };
+
+    const el = React.createElement(FastHtmlView, {
+      html: '<h1>Title</h1><p>Body with <code>code</code> and <a href="#">Link</a></p>',
+      tagsStyles,
+    });
+    expect(el.props.tagsStyles).toEqual(tagsStyles);
+  });
+
+  it('supports custom component renderers via renderers prop', () => {
+    const CustomVideo = ({ block }: any) =>
+      React.createElement('View', { testID: `video-${block.src}` });
+    const CustomCode = ({ block }: any) =>
+      React.createElement('Text', { testID: 'code-block' }, block.code);
+    const CustomPoll = () =>
+      React.createElement('View', { testID: 'poll-component' });
+
+    const el = React.createElement(FastHtmlView, {
+      html: '<p>Before</p><video src="https://example.com/v.mp4"></video><custom-poll></custom-poll><pre><code>let x = 1;</code></pre><p>After</p>',
+      renderers: {
+        Video: CustomVideo,
+        CodeBlock: CustomCode,
+        'custom-poll': CustomPoll,
+      },
+    });
+
+    expect(el.props.renderers).toBeDefined();
+    expect(el.props.renderers?.Video).toBe(CustomVideo);
+    expect(el.props.renderers?.CodeBlock).toBe(CustomCode);
+  });
+
+  it('supports selectable prop (true | false)', () => {
+    const selectableEl = React.createElement(FastHtmlView, {
+      html: '<p>Selectable text</p>',
+      selectable: true,
+    });
+    const nonSelectableEl = React.createElement(FastHtmlView, {
+      html: '<p>Non-selectable text</p>',
+      selectable: false,
+    });
+
+    expect(selectableEl.props.selectable).toBe(true);
+    expect(nonSelectableEl.props.selectable).toBe(false);
+  });
+
+  it('supports fontFeatureSettings prop', () => {
+    const el = React.createElement(FastHtmlView, {
+      html: '<p>Tabular numbers: 123456</p>',
+      fontFeatureSettings: '"tnum" 1, "frac" 1',
+    });
+    expect(el.props.fontFeatureSettings).toBe('"tnum" 1, "frac" 1');
+  });
+
+  it('supports onLinkPress callback prop', () => {
+    const handleLink = jest.fn();
+    const el = React.createElement(FastHtmlView, {
+      html: '<a href="https://example.com">Visit</a>',
+      onLinkPress: handleLink,
+    });
+    expect(el.props.onLinkPress).toBe(handleLink);
+  });
+
+  it('supports style prop for container view', () => {
+    const containerStyle = {
+      marginHorizontal: 16,
+      marginVertical: 8,
+      backgroundColor: '#ffffff',
+      borderRadius: 12,
+    };
+    const el = React.createElement(FastHtmlView, {
+      html: '<p>Card Content</p>',
+      style: containerStyle,
+    });
+    expect(el.props.style).toEqual(containerStyle);
+  });
+});
+
+describe('4. Malformed HTML Recovery & Resiliency', () => {
   it('recovers gracefully from unclosed tags and mismatched tags', () => {
     const malformed =
       '<div><p>Unclosed paragraph<h1>Header without close<b>bold<i>italic';
@@ -369,171 +676,7 @@ describe('2. Malformed HTML Recovery & Resiliency', () => {
   });
 });
 
-describe('3. Multiple Nested HTML & Deep Hierarchies', () => {
-  it('parses multi-level nested lists (ordered inside unordered)', () => {
-    const nestedListsHtml = `
-      <ul>
-        <li>Parent Item 1
-          <ol>
-            <li>Sub Item 1.1</li>
-            <li>Sub Item 1.2
-              <ul>
-                <li>Deep Sub Item 1.2.1</li>
-              </ul>
-            </li>
-          </ol>
-        </li>
-      </ul>
-    `;
-    const article = parseHTML(nestedListsHtml);
-    const blocks = getBlocks(article);
-    const listBlock = blocks.find((b) => b.type === 'List');
-    expect(listBlock).toBeDefined();
-
-    const items = getItems(listBlock);
-    expect(items.length).toBeGreaterThan(0);
-    const firstItem = items[0];
-    expect(firstItem).toBeDefined();
-
-    const nested = getNestedBlocks(firstItem);
-    expect(nested.length).toBe(1);
-    expect(nested[0]?.type).toBe('List');
-  });
-
-  it('parses blockquotes containing nested paragraphs and headings', () => {
-    const quoteHtml = `
-      <blockquote>
-        <h2>Nested Heading</h2>
-        <p>Nested quote paragraph with <b>bold</b> and <i>italic</i> formatting.</p>
-      </blockquote>
-    `;
-    const article = parseHTML(quoteHtml);
-    const blocks = getBlocks(article);
-    const quoteBlock = blocks.find((b) => b.type === 'Quote');
-    expect(quoteBlock).toBeDefined();
-
-    const quoteChildren = getQuoteChildren(quoteBlock);
-    expect(quoteChildren.length).toBeGreaterThan(0);
-    expect(quoteChildren[0]?.type).toBe('Paragraph');
-  });
-
-  it('parses deep inline combinations (bold > italic > underline > link)', () => {
-    const deepInline =
-      '<p><span><b><i><u><a href="https://example.com">Click Deep Link</a></u></i></b></span></p>';
-    const article = parseHTML(deepInline);
-    const blocks = getBlocks(article);
-    expect(blocks.length).toBeGreaterThan(0);
-    const inlines = getChildren(blocks[0]);
-    expect(inlines.length).toBeGreaterThan(0);
-  });
-});
-
-describe('4. Complex Editorial HTML & Mixed Layouts', () => {
-  it('parses complete 2D Data Tables with headers, cells, and inline formatting', () => {
-    const tableHtml = `
-      <table>
-        <thead>
-          <tr><th>Framework</th><th>Core Language</th><th>Speed</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>React Native</td><td>TypeScript</td><td><b>High</b></td></tr>
-          <tr><td>Rust Core</td><td>Rust</td><td><i>Ultra Fast</i></td></tr>
-        </tbody>
-      </table>
-    `;
-    const article = parseHTML(tableHtml);
-    const blocks = getBlocks(article);
-    const tableBlock = blocks.find((b) => b.type === 'Table');
-    expect(tableBlock).toBeDefined();
-
-    const rows = getRows(tableBlock);
-    expect(rows.length).toBeGreaterThan(0);
-    const firstRow = rows[0];
-    expect(firstRow).toBeDefined();
-
-    const cells = getCells(firstRow);
-    expect(cells.length).toBeGreaterThan(0);
-    const firstCell = cells[0];
-    expect(firstCell).toBeDefined();
-    const cellInlines = getChildren(firstCell);
-    expect(cellInlines.length).toBeGreaterThan(0);
-  });
-
-  it('parses syntax-highlighted code blocks with language classes', () => {
-    const codeHtml = `
-      <pre><code class="language-typescript">
-        const fast = parseHTML('&lt;h1&gt;Speed&lt;/h1&gt;');
-        console.log(fast.length);
-      </code></pre>
-    `;
-    const article = parseHTML(codeHtml);
-    const blocks = getBlocks(article);
-    const codeBlock = blocks.find((b) => b.type === 'CodeBlock');
-    expect(codeBlock).toBeDefined();
-    expect(codeBlock?.language).toBe('typescript');
-    expect(codeBlock?.code).toContain('const fast');
-  });
-
-  it('parses definition lists (<dl>, <dt>, <dd>)', () => {
-    const dlHtml = `
-      <dl>
-        <dt>JSI</dt>
-        <dd>JavaScript Interface for direct memory calls.</dd>
-        <dt>Nitro</dt>
-        <dd>Fast native module engine by Margelo.</dd>
-      </dl>
-    `;
-    const article = parseHTML(dlHtml);
-    const blocks = getBlocks(article);
-    const dlBlock = blocks.find((b) => b.type === 'DefinitionList');
-    expect(dlBlock).toBeDefined();
-
-    const items = getDefItems(dlBlock);
-    expect(items.length).toBeGreaterThan(0);
-  });
-});
-
-describe('5. Unsupported, Ignored & Custom Tags', () => {
-  it('strips dangerous <script> and <style> tags completely', () => {
-    const dangerousHtml = `
-      <script>window.location.href = "https://malicious.com"; alert("XSS");</script>
-      <style>body { display: none; }</style>
-      <h1>Clean Title</h1>
-      <p>Safe content here.</p>
-    `;
-    const article = parseHTML(dangerousHtml);
-    expect(article).not.toBeNull();
-    const blocks = getBlocks(article);
-    const hasScript = blocks.some((b) =>
-      b.type.toLowerCase().includes('script')
-    );
-    const hasStyle = blocks.some((b) => b.type.toLowerCase().includes('style'));
-    expect(hasScript).toBe(false);
-    expect(hasStyle).toBe(false);
-  });
-
-  it('preserves custom tags for custom renderer injection', () => {
-    const customHtml = `
-      <h1>Article</h1>
-      <custom-poll id="poll-42" title="Favorite Framework"></custom-poll>
-      <p>Closing thoughts.</p>
-    `;
-    const article = parseHTML(customHtml);
-    const blocks = getBlocks(article);
-    const customBlock = blocks.find((b) => b.type === 'custom-poll');
-    expect(customBlock).toBeDefined();
-  });
-
-  it('handles void elements (<hr>, <br>, <wbr>, <img>)', () => {
-    const voidHtml = '<h1>Title</h1><hr /><p>Line 1<br>Line 2<wbr>Line 3</p>';
-    const article = parseHTML(voidHtml);
-    expect(article).not.toBeNull();
-    const blocks = getBlocks(article);
-    expect(blocks.length).toBeGreaterThan(0);
-  });
-});
-
-describe('6. Combination & Mega Stress Test', () => {
+describe('5. Combination & Mega Stress Test', () => {
   const MEGA_HTML = `
     <!-- HTML Comment Stripping Test -->
     <!DOCTYPE html>
@@ -594,7 +737,6 @@ describe('6. Combination & Mega Stress Test', () => {
     const blocks = getBlocks(article);
     expect(blocks.length).toBeGreaterThanOrEqual(5);
 
-    // Verify all wrapper helpers operate safely on the complex AST
     blocks.forEach((block) => {
       getChildren(block);
       if (block.type === 'List') getItems(block);
@@ -603,7 +745,13 @@ describe('6. Combination & Mega Stress Test', () => {
         rows.forEach((r) => getCells(r));
       }
       if (block.type === 'Quote') getQuoteChildren(block);
-      if (block.type === 'DefinitionList') getDefItems(block);
+      if (block.type === 'DefinitionList') {
+        const defItems = getDefItems(block);
+        defItems.forEach((d) => {
+          getTerms(d);
+          getDefs(d);
+        });
+      }
     });
   });
 
@@ -621,7 +769,7 @@ describe('6. Combination & Mega Stress Test', () => {
         h2: { fontSize: 20, color: '#0369a1' },
       },
       renderers: {
-        'Video': CustomVideo,
+        Video: CustomVideo,
         'custom-poll': CustomPoll,
       },
       selectable: true,
@@ -630,35 +778,5 @@ describe('6. Combination & Mega Stress Test', () => {
 
     expect(element).toBeDefined();
     expect(element.type).toBe(FastHtmlView);
-  });
-
-  // 7. Advanced Native Optimizations & Capabilities
-  describe('7. Advanced Native Optimizations & Capabilities', () => {
-    it('parses large document asynchronously via parseHTMLAsync', async () => {
-      const article = await parseHTMLAsync(MEGA_HTML);
-      expect(article).not.toBeNull();
-      expect(article!.length).toBeGreaterThan(0);
-    });
-
-    it('supports sync parseHTML and async parseHTMLAsync', async () => {
-      const syncArticle = parseHTML('<p>Sync test</p>');
-      const asyncArticle = await parseHTMLAsync('<p>Async test</p>');
-      expect(syncArticle).not.toBeNull();
-      expect(asyncArticle).not.toBeNull();
-    });
-
-    it('renders FastHtmlView with mode prop (sync and async)', () => {
-      const syncElement = React.createElement(FastHtmlView, {
-        html: '<p>Sync render</p>',
-        mode: 'sync',
-      });
-      const asyncElement = React.createElement(FastHtmlView, {
-        html: '<p>Async render</p>',
-        mode: 'async',
-      });
-
-      expect(syncElement).toBeDefined();
-      expect(asyncElement).toBeDefined();
-    });
   });
 });

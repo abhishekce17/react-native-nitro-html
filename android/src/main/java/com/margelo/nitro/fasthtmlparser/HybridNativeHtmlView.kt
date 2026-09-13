@@ -2,6 +2,7 @@ package com.margelo.nitro.fasthtmlparser
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.text.method.LinkMovementMethod
@@ -23,8 +24,22 @@ class HybridNativeHtmlView(
         ?: throw IllegalStateException("NitroModules.applicationContext is null")
 ) : HybridNativeHtmlViewSpec() {
 
+    private val measureAndLayoutRunnable = Runnable {
+        if (containerLayout.width > 0 && containerLayout.height > 0) {
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(containerLayout.width, View.MeasureSpec.EXACTLY)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(containerLayout.height, View.MeasureSpec.EXACTLY)
+            containerLayout.measure(widthSpec, heightSpec)
+            containerLayout.layout(containerLayout.left, containerLayout.top, containerLayout.right, containerLayout.bottom)
+        }
+    }
+
     private val containerLayout: LinearLayout by lazy {
-        LinearLayout(context).apply {
+        object : LinearLayout(context) {
+            override fun requestLayout() {
+                super.requestLayout()
+                post(measureAndLayoutRunnable)
+            }
+        }.apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -102,14 +117,6 @@ class HybridNativeHtmlView(
         }
     }
 
-    override var themeMode: String? = null
-        set(value) {
-            if (field != value) {
-                field = value
-                setNeedsContentUpdate()
-            }
-        }
-
     override var onLinkPress: ((url: String) -> Unit)? = null
         set(value) {
             field = value
@@ -165,6 +172,16 @@ class HybridNativeHtmlView(
                         setTextIsSelectable(selectable ?: true)
                         movementMethod = LinkMovementMethod.getInstance()
                         setBackgroundColor(Color.TRANSPARENT)
+                        val ffs = baseStyle?.fontFeatureSettings
+                        if (!ffs.isNullOrEmpty() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                            fontFeatureSettings = ffs
+                        }
+                        val baseFamily = baseStyle?.fontFamily
+                        val baseWeight = baseStyle?.fontWeight
+                        val baseFontStyle = baseStyle?.fontStyle
+                        if (!baseFamily.isNullOrEmpty() || !baseWeight.isNullOrEmpty() || !baseFontStyle.isNullOrEmpty()) {
+                            typeface = SpannableHtmlEngine.resolveTypeface(context, baseFamily, baseWeight, baseFontStyle)
+                        }
                         ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
                             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
                                 super.onInitializeAccessibilityNodeInfo(host, info)
@@ -186,7 +203,6 @@ class HybridNativeHtmlView(
                 val rows = blockObj.optJSONArray("rows")
                 if (rows != null && rows.length() > 0) {
                     flushTextBlocks()
-
                     val borderColorHex = blockObj.optString("borderLeftColor")
                     val borderColorInt = try { Color.parseColor(borderColorHex) } catch (_: Exception) { Color.TRANSPARENT }
                     val borderWidthDp = blockObj.optDouble("borderLeftWidth").toFloat()
@@ -214,6 +230,11 @@ class HybridNativeHtmlView(
                         }
                         showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
                         dividerDrawable = ColorDrawable(borderColorInt)
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                        isStretchAllColumns = true
                     }
 
                     for (r in 0 until rows.length()) {
@@ -222,16 +243,30 @@ class HybridNativeHtmlView(
                         val tableRow = TableRow(context).apply {
                             showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
                             dividerDrawable = ColorDrawable(borderColorInt)
+                            layoutParams = TableLayout.LayoutParams(
+                                TableLayout.LayoutParams.MATCH_PARENT,
+                                TableLayout.LayoutParams.WRAP_CONTENT
+                            )
                         }
 
                         for (c in 0 until cells.length()) {
                             val cellObj = cells.optJSONObject(c) ?: continue
-                            val cellSpannable = SpannableHtmlEngine.buildCellSpannable(cellObj, onLinkPress)
+                            val cellSpannable = SpannableHtmlEngine.buildCellSpannable(cellObj, onLinkPress, context)
                             val cellTv = TextView(context).apply {
                                 text = cellSpannable
                                 setPadding(padH, padV, padH, padV)
                                 setTextIsSelectable(selectable ?: true)
                                 movementMethod = LinkMovementMethod.getInstance()
+                                val ffs = baseStyle?.fontFeatureSettings
+                                if (!ffs.isNullOrEmpty() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                    fontFeatureSettings = ffs
+                                }
+                                val cellFamily = baseStyle?.fontFamily
+                                val cellWeight = baseStyle?.fontWeight
+                                val cellFontStyle = baseStyle?.fontStyle
+                                if (!cellFamily.isNullOrEmpty() || !cellWeight.isNullOrEmpty() || !cellFontStyle.isNullOrEmpty()) {
+                                    typeface = SpannableHtmlEngine.resolveTypeface(context, cellFamily, cellWeight, cellFontStyle)
+                                }
                             }
                             tableRow.addView(cellTv)
                         }
@@ -288,16 +323,23 @@ class HybridNativeHtmlView(
                             LinearLayout.LayoutParams.MATCH_PARENT,
                             LinearLayout.LayoutParams.WRAP_CONTENT
                         )
+                        val imgBorderRadius = blockObj.optDouble("borderRadius").let { if (it > 0) (it * density).toFloat() else 0f }
                         outlineProvider = object : android.view.ViewOutlineProvider() {
                             override fun getOutline(view: View, outline: android.graphics.Outline) {
                                 if (view.width > 0 && view.height > 0) {
-                                    outline.setRoundRect(0, 0, view.width, view.height, 8 * density)
+                                    if (imgBorderRadius > 0f) {
+                                        outline.setRoundRect(0, 0, view.width, view.height, imgBorderRadius)
+                                    } else {
+                                        outline.setRect(0, 0, view.width, view.height)
+                                    }
                                 }
                             }
                         }
-                        clipToOutline = true
+                        clipToOutline = imgBorderRadius > 0f
                         background = GradientDrawable().apply {
-                            cornerRadius = 8 * density
+                            if (imgBorderRadius > 0f) {
+                                cornerRadius = imgBorderRadius
+                            }
                             setColor(if (bgHex.isNotEmpty()) bgInt else Color.parseColor("#F1F5F9"))
                         }
                     }
@@ -411,6 +453,9 @@ class HybridNativeHtmlView(
 
         flushTextBlocks()
 
+        containerLayout.requestLayout()
+        containerLayout.invalidate()
+
         // Measure unconstrained layout height and report back to React Native Yoga
         containerLayout.post {
             reportContentHeight(immediate = true)
@@ -424,6 +469,7 @@ class HybridNativeHtmlView(
         val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
         containerLayout.measure(widthSpec, heightSpec)
         val hPx = containerLayout.measuredHeight
+        containerLayout.layout(containerLayout.left, containerLayout.top, containerLayout.left + w, containerLayout.top + hPx)
         if (hPx > 0 && density > 0) {
             val hDp = hPx.toDouble() / density.toDouble()
             onContentSizeChange?.invoke(hDp)

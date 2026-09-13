@@ -15,6 +15,8 @@
 #include <mutex>
 #include <list>
 #include <unordered_map>
+#include <sstream>
+#include <cctype>
 
 namespace margelo::nitro::fasthtmlparser {
 
@@ -44,7 +46,7 @@ static std::string getAttribute(lxb_dom_element_t* element, const char* name) {
     const lxb_char_t* val = lxb_dom_element_get_attribute(
         element,
         reinterpret_cast<const lxb_char_t*>(name),
-        strlen(name),
+        std::strlen(name),
         &val_len
     );
     if (val && val_len > 0) {
@@ -87,6 +89,7 @@ struct StyleContext {
     std::string textTransform{""};
     std::string textAlign{""};
     double opacity{1.0};
+    std::string fontFeatureSettings{""};
 };
 
 static std::string normalizeHtmlWhitespace(const std::string& input) {
@@ -129,6 +132,451 @@ static std::string applyTextTransform(const std::string& input, const std::strin
     return result;
 }
 
+static inline std::string trimSpacesOnly(const std::string& str) {
+    size_t start = 0;
+    while (start < str.size() && std::isspace(static_cast<unsigned char>(str[start]))) start++;
+    size_t end = str.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(str[end - 1]))) end--;
+    return str.substr(start, end - start);
+}
+
+static inline std::string cleanQuotes(const std::string& str) {
+    if (str.size() >= 2) {
+        if ((str.front() == '\'' && str.back() == '\'') ||
+            (str.front() == '"' && str.back() == '"')) {
+            return str.substr(1, str.size() - 2);
+        }
+    }
+    return str;
+}
+
+static double parseCssDimension(const std::string& raw, double baseFontSize = 16.0) {
+    std::string val = trimSpacesOnly(raw);
+    if (val.empty()) return 0.0;
+
+    size_t imp = val.find('!');
+    if (imp != std::string::npos) val = trimSpacesOnly(val.substr(0, imp));
+
+    try {
+        if (val.size() > 2 && (val.rfind("px") == val.size() - 2 || val.rfind("PX") == val.size() - 2)) {
+            return std::stod(val.substr(0, val.size() - 2));
+        }
+        if (val.size() > 2 && (val.rfind("pt") == val.size() - 2 || val.rfind("PT") == val.size() - 2)) {
+            return std::stod(val.substr(0, val.size() - 2)) * 1.333333;
+        }
+        if (val.size() > 2 && (val.rfind("em") == val.size() - 2 || val.rfind("EM") == val.size() - 2)) {
+            return std::stod(val.substr(0, val.size() - 2)) * baseFontSize;
+        }
+        if (val.size() > 3 && (val.rfind("rem") == val.size() - 3 || val.rfind("REM") == val.size() - 3)) {
+            return std::stod(val.substr(0, val.size() - 3)) * 16.0;
+        }
+        if (val.back() == '%') {
+            return (std::stod(val.substr(0, val.size() - 1)) / 100.0) * baseFontSize;
+        }
+        return std::stod(val);
+    } catch (...) {
+        return 0.0;
+    }
+}
+
+static std::string parseCssColor(const std::string& raw) {
+    std::string val = trimSpacesOnly(raw);
+    if (val.empty()) return "";
+
+    size_t imp = val.find('!');
+    if (imp != std::string::npos) val = trimSpacesOnly(val.substr(0, imp));
+
+    std::string lower = val;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // ── Complete Standard W3C CSS Named Colors (148 Colors) ─────────────────
+    static const std::unordered_map<std::string, const char*> kNamedCssColors = {
+        {"transparent", "transparent"},
+        {"aliceblue", "#F0F8FF"},
+        {"antiquewhite", "#FAEBD7"},
+        {"aqua", "#00FFFF"},
+        {"aquamarine", "#7FFFD4"},
+        {"azure", "#F0FFFF"},
+        {"beige", "#F5F5DC"},
+        {"bisque", "#FFE4C4"},
+        {"black", "#000000"},
+        {"blanchedalmond", "#FFEBCD"},
+        {"blue", "#0000FF"},
+        {"blueviolet", "#8A2BE2"},
+        {"brown", "#A52A2A"},
+        {"burlywood", "#DEB887"},
+        {"cadetblue", "#5F9EA0"},
+        {"chartreuse", "#7FFF00"},
+        {"chocolate", "#D2691E"},
+        {"coral", "#FF7F50"},
+        {"cornflowerblue", "#6495ED"},
+        {"cornsilk", "#FFF8DC"},
+        {"crimson", "#DC143C"},
+        {"cyan", "#00FFFF"},
+        {"darkblue", "#00008B"},
+        {"darkcyan", "#008B8B"},
+        {"darkgoldenrod", "#B8860B"},
+        {"darkgray", "#A9A9A9"},
+        {"darkgrey", "#A9A9A9"},
+        {"darkgreen", "#006400"},
+        {"darkkhaki", "#BDB76B"},
+        {"darkmagenta", "#8B008B"},
+        {"darkolivegreen", "#556B2F"},
+        {"darkorange", "#FF8C00"},
+        {"darkorchid", "#9932CC"},
+        {"darkred", "#8B0000"},
+        {"darksalmon", "#E9967A"},
+        {"darkseagreen", "#8FBC8F"},
+        {"darkslateblue", "#483D8B"},
+        {"darkslategray", "#2F4F4F"},
+        {"darkslategrey", "#2F4F4F"},
+        {"darkturquoise", "#00CED1"},
+        {"darkviolet", "#9400D3"},
+        {"deeppink", "#FF1493"},
+        {"deepskyblue", "#00BFFF"},
+        {"dimgray", "#696969"},
+        {"dimgrey", "#696969"},
+        {"dodgerblue", "#1E90FF"},
+        {"firebrick", "#B22222"},
+        {"floralwhite", "#FFFAF0"},
+        {"forestgreen", "#228B22"},
+        {"fuchsia", "#FF00FF"},
+        {"gainsboro", "#DCDCDC"},
+        {"ghostwhite", "#F8F8FF"},
+        {"gold", "#FFD700"},
+        {"goldenrod", "#DAA520"},
+        {"gray", "#808080"},
+        {"grey", "#808080"},
+        {"green", "#008000"},
+        {"greenyellow", "#ADFF2F"},
+        {"honeydew", "#F0FFF0"},
+        {"hotpink", "#FF69B4"},
+        {"indianred", "#CD5C5C"},
+        {"indigo", "#4B0082"},
+        {"ivory", "#FFFFF0"},
+        {"khaki", "#F0E68C"},
+        {"lavender", "#E6E6FA"},
+        {"lavenderblush", "#FFF0F5"},
+        {"lawngreen", "#7CFC00"},
+        {"lemonchiffon", "#FFFACD"},
+        {"lightblue", "#ADD8E6"},
+        {"lightcoral", "#F08080"},
+        {"lightcyan", "#E0FFFF"},
+        {"lightgoldenrodyellow", "#FAFAD2"},
+        {"lightgray", "#D3D3D3"},
+        {"lightgrey", "#D3D3D3"},
+        {"lightgreen", "#90EE90"},
+        {"lightpink", "#FFB6C1"},
+        {"lightsalmon", "#FFA07A"},
+        {"lightseagreen", "#20B2AA"},
+        {"lightskyblue", "#87CEFA"},
+        {"lightslategray", "#778899"},
+        {"lightslategrey", "#778899"},
+        {"lightsteelblue", "#B0C4DE"},
+        {"lightyellow", "#FFFFE0"},
+        {"lime", "#00FF00"},
+        {"limegreen", "#32CD32"},
+        {"linen", "#FAF0E6"},
+        {"magenta", "#FF00FF"},
+        {"maroon", "#800000"},
+        {"mediumaquamarine", "#66CDAA"},
+        {"mediumblue", "#0000CD"},
+        {"mediumorchid", "#BA55D3"},
+        {"mediumpurple", "#9370DB"},
+        {"mediumseagreen", "#3CB371"},
+        {"mediumslateblue", "#7B68EE"},
+        {"mediumspringgreen", "#00FA9A"},
+        {"mediumturquoise", "#48D1CC"},
+        {"mediumvioletred", "#C71585"},
+        {"midnightblue", "#191970"},
+        {"mintcream", "#F5FFFA"},
+        {"mistyrose", "#FFE4E1"},
+        {"moccasin", "#FFE4B5"},
+        {"navajowhite", "#FFDEAD"},
+        {"navy", "#000080"},
+        {"oldlace", "#FDF5E6"},
+        {"olive", "#808000"},
+        {"olivedrab", "#6B8E23"},
+        {"orange", "#FFA500"},
+        {"orangered", "#FF4500"},
+        {"orchid", "#DA70D6"},
+        {"palegoldenrod", "#EEE8AA"},
+        {"palegreen", "#98FB98"},
+        {"paleturquoise", "#AFEEEE"},
+        {"palevioletred", "#DB7093"},
+        {"papayawhip", "#FFEFD5"},
+        {"peachpuff", "#FFDAB9"},
+        {"peru", "#CD853F"},
+        {"pink", "#FFC0CB"},
+        {"plum", "#DDA0DD"},
+        {"powderblue", "#B0E0E6"},
+        {"purple", "#800080"},
+        {"rebeccapurple", "#663399"},
+        {"red", "#FF0000"},
+        {"rosybrown", "#BC8F8F"},
+        {"royalblue", "#4169E1"},
+        {"saddlebrown", "#8B4513"},
+        {"salmon", "#FA8072"},
+        {"sandybrown", "#F4A460"},
+        {"seagreen", "#2E8B57"},
+        {"seashell", "#FFF5EE"},
+        {"sienna", "#A0522D"},
+        {"silver", "#C0C0C0"},
+        {"skyblue", "#87CEEB"},
+        {"slateblue", "#6A5ACD"},
+        {"slategray", "#708090"},
+        {"slategrey", "#708090"},
+        {"snow", "#FFFAFA"},
+        {"springgreen", "#00FF7F"},
+        {"steelblue", "#4682B4"},
+        {"tan", "#D2B48C"},
+        {"teal", "#008080"},
+        {"thistle", "#D8BFD8"},
+        {"tomato", "#FF6347"},
+        {"turquoise", "#40E0D0"},
+        {"violet", "#EE82EE"},
+        {"wheat", "#F5DEB3"},
+        {"white", "#FFFFFF"},
+        {"whitesmoke", "#F5F5F5"},
+        {"yellow", "#FFFF00"},
+        {"yellowgreen", "#9ACD32"}
+    };
+
+    auto it = kNamedCssColors.find(lower);
+    if (it != kNamedCssColors.end()) {
+        return std::string(it->second);
+    }
+
+    // ── Hex Colors (#RGB, #RGBA, #RRGGBB, #RRGGBBAA) ────────────────────────
+    if (val.front() == '#') {
+        if (val.size() == 4) { // #RGB -> #RRGGBB
+            std::string full = "#";
+            full += val[1]; full += val[1];
+            full += val[2]; full += val[2];
+            full += val[3]; full += val[3];
+            return full;
+        } else if (val.size() == 5) { // #RGBA -> #AARRGGBB
+            std::string full = "#";
+            full += val[4]; full += val[4];
+            full += val[1]; full += val[1];
+            full += val[2]; full += val[2];
+            full += val[3]; full += val[3];
+            return full;
+        } else if (val.size() == 9) { // #RRGGBBAA -> #AARRGGBB
+            std::string full = "#";
+            full += val.substr(7, 2); // AA
+            full += val.substr(1, 6); // RRGGBB
+            return full;
+        }
+        return val;
+    }
+
+    // ── rgb(...) or rgba(...) ───────────────────────────────────────────────
+    if (lower.rfind("rgb", 0) == 0) {
+        size_t openP = val.find('(');
+        size_t closeP = val.find(')');
+        if (openP != std::string::npos && closeP != std::string::npos && closeP > openP) {
+            std::string inside = val.substr(openP + 1, closeP - openP - 1);
+            std::vector<std::string> parts;
+            std::stringstream ss(inside);
+            std::string item;
+            while (std::getline(ss, item, ',')) {
+                parts.push_back(trimSpacesOnly(item));
+            }
+            if (parts.size() >= 3) {
+                try {
+                    int r = std::clamp(std::stoi(parts[0]), 0, 255);
+                    int g = std::clamp(std::stoi(parts[1]), 0, 255);
+                    int b = std::clamp(std::stoi(parts[2]), 0, 255);
+                    char buf[12];
+                    if (parts.size() >= 4) {
+                        double a = std::clamp(std::stod(parts[3]), 0.0, 1.0);
+                        int aInt = static_cast<int>(a * 255.0);
+                        snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", aInt, r, g, b);
+                    } else {
+                        snprintf(buf, sizeof(buf), "#%02X%02X%02X", r, g, b);
+                    }
+                    return std::string(buf);
+                } catch (...) {}
+            }
+        }
+    }
+
+    // ── hsl(...) or hsla(...) ───────────────────────────────────────────────
+    if (lower.rfind("hsl", 0) == 0) {
+        size_t openP = val.find('(');
+        size_t closeP = val.find(')');
+        if (openP != std::string::npos && closeP != std::string::npos && closeP > openP) {
+            std::string inside = val.substr(openP + 1, closeP - openP - 1);
+            std::vector<std::string> parts;
+            std::stringstream ss(inside);
+            std::string item;
+            while (std::getline(ss, item, ',')) {
+                parts.push_back(trimSpacesOnly(item));
+            }
+            if (parts.size() >= 3) {
+                try {
+                    double h = std::stod(parts[0]);
+                    std::string sStr = parts[1];
+                    if (!sStr.empty() && sStr.back() == '%') sStr.pop_back();
+                    double s = std::stod(sStr) / 100.0;
+                    std::string lStr = parts[2];
+                    if (!lStr.empty() && lStr.back() == '%') lStr.pop_back();
+                    double l = std::stod(lStr) / 100.0;
+                    double a = 1.0;
+                    if (parts.size() >= 4) {
+                        a = std::clamp(std::stod(parts[3]), 0.0, 1.0);
+                    }
+
+                    auto hue2rgb = [](double p, double q, double t) {
+                        if (t < 0.0) t += 1.0;
+                        if (t > 1.0) t -= 1.0;
+                        if (t < 1.0 / 6.0) return p + (q - p) * 6.0 * t;
+                        if (t < 1.0 / 2.0) return q;
+                        if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+                        return p;
+                    };
+
+                    double r, g, b;
+                    if (s == 0.0) {
+                        r = g = b = l;
+                    } else {
+                        double q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+                        double p = 2.0 * l - q;
+                        r = hue2rgb(p, q, (h / 360.0) + (1.0 / 3.0));
+                        g = hue2rgb(p, q, h / 360.0);
+                        b = hue2rgb(p, q, (h / 360.0) - (1.0 / 3.0));
+                    }
+
+                    int rInt = std::clamp(static_cast<int>(r * 255.0 + 0.5), 0, 255);
+                    int gInt = std::clamp(static_cast<int>(g * 255.0 + 0.5), 0, 255);
+                    int bInt = std::clamp(static_cast<int>(b * 255.0 + 0.5), 0, 255);
+                    char buf[12];
+                    if (a < 1.0) {
+                        int aInt = std::clamp(static_cast<int>(a * 255.0 + 0.5), 0, 255);
+                        snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", aInt, rInt, gInt, bInt);
+                    } else {
+                        snprintf(buf, sizeof(buf), "#%02X%02X%02X", rInt, gInt, bInt);
+                    }
+                    return std::string(buf);
+                } catch (...) {}
+            }
+        }
+    }
+
+    return val;
+}
+
+static std::string parseCssFontFamily(const std::string& raw) {
+    std::string val = trimSpacesOnly(raw);
+    if (val.empty()) return "";
+    size_t imp = val.find('!');
+    if (imp != std::string::npos) val = trimSpacesOnly(val.substr(0, imp));
+
+    std::stringstream ss(val);
+    std::string item;
+    std::string result;
+    while (std::getline(ss, item, ',')) {
+        std::string cleaned = cleanQuotes(trimSpacesOnly(item));
+        if (!cleaned.empty()) {
+            if (!result.empty()) result += ", ";
+            result += cleaned;
+        }
+    }
+    return result.empty() ? cleanQuotes(val) : result;
+}
+
+static void parseInlineCss(
+    const std::string& styleAttr,
+    NativeTextStyle& outStyle,
+    double baseFontSize = 16.0
+) {
+    if (styleAttr.empty()) return;
+
+    std::stringstream ss(styleAttr);
+    std::string decl;
+    while (std::getline(ss, decl, ';')) {
+        decl = trimSpacesOnly(decl);
+        if (decl.empty()) continue;
+
+        size_t colon = decl.find(':');
+        if (colon == std::string::npos) continue;
+
+        std::string prop = trimSpacesOnly(decl.substr(0, colon));
+        std::string val = trimSpacesOnly(decl.substr(colon + 1));
+        if (prop.empty() || val.empty()) continue;
+
+        std::transform(prop.begin(), prop.end(), prop.begin(), ::tolower);
+
+        if (prop == "font-family") {
+            outStyle.fontFamily = parseCssFontFamily(val);
+        } else if (prop == "font-size") {
+            double sz = parseCssDimension(val, baseFontSize);
+            if (sz > 0) outStyle.fontSize = sz;
+        } else if (prop == "font-weight") {
+            std::string w = trimSpacesOnly(val);
+            std::string lowerW = w;
+            std::transform(lowerW.begin(), lowerW.end(), lowerW.begin(), ::tolower);
+            if (lowerW == "bold" || lowerW == "bolder") outStyle.fontWeight = "bold";
+            else if (lowerW == "normal" || lowerW == "regular") outStyle.fontWeight = "normal";
+            else outStyle.fontWeight = w;
+        } else if (prop == "font-style") {
+            outStyle.fontStyle = trimSpacesOnly(val);
+        } else if (prop == "color") {
+            outStyle.color = parseCssColor(val);
+        } else if (prop == "background-color" || prop == "background") {
+            outStyle.backgroundColor = parseCssColor(val);
+        } else if (prop == "line-height") {
+            double lh = parseCssDimension(val, baseFontSize);
+            if (lh > 0) outStyle.lineHeight = lh;
+        } else if (prop == "letter-spacing") {
+            outStyle.letterSpacing = parseCssDimension(val, baseFontSize);
+        } else if (prop == "text-align") {
+            outStyle.textAlign = trimSpacesOnly(val);
+        } else if (prop == "text-transform") {
+            outStyle.textTransform = trimSpacesOnly(val);
+        } else if (prop == "text-decoration" || prop == "text-decoration-line") {
+            outStyle.textDecorationLine = trimSpacesOnly(val);
+        } else if (prop == "text-decoration-color") {
+            outStyle.textDecorationColor = parseCssColor(val);
+        } else if (prop == "text-decoration-style") {
+            outStyle.textDecorationStyle = trimSpacesOnly(val);
+        } else if (prop == "text-indent") {
+            outStyle.textIndent = parseCssDimension(val, baseFontSize);
+        } else if (prop == "opacity") {
+            try { outStyle.opacity = std::stod(val); } catch (...) {}
+        } else if (prop == "font-feature-settings") {
+            outStyle.fontFeatureSettings = trimSpacesOnly(val);
+        } else if (prop == "margin") {
+            outStyle.margin = parseCssDimension(val, baseFontSize);
+        } else if (prop == "margin-top") {
+            outStyle.marginTop = parseCssDimension(val, baseFontSize);
+        } else if (prop == "margin-bottom") {
+            outStyle.marginBottom = parseCssDimension(val, baseFontSize);
+        } else if (prop == "margin-left") {
+            outStyle.marginLeft = parseCssDimension(val, baseFontSize);
+        } else if (prop == "margin-right") {
+            outStyle.marginRight = parseCssDimension(val, baseFontSize);
+        } else if (prop == "padding") {
+            outStyle.padding = parseCssDimension(val, baseFontSize);
+        } else if (prop == "padding-top") {
+            outStyle.paddingTop = parseCssDimension(val, baseFontSize);
+        } else if (prop == "padding-bottom") {
+            outStyle.paddingBottom = parseCssDimension(val, baseFontSize);
+        } else if (prop == "padding-left") {
+            outStyle.paddingLeft = parseCssDimension(val, baseFontSize);
+        } else if (prop == "padding-right") {
+            outStyle.paddingRight = parseCssDimension(val, baseFontSize);
+        } else if (prop == "border-width" || prop == "border-left-width") {
+            outStyle.borderLeftWidth = parseCssDimension(val, baseFontSize);
+        } else if (prop == "border-color" || prop == "border-left-color") {
+            outStyle.borderLeftColor = parseCssColor(val);
+        } else if (prop == "border-radius") {
+            outStyle.borderRadius = parseCssDimension(val, baseFontSize);
+        }
+    }
+}
+
 static const NativeTextStyle* findTagStyle(
     const std::string& tag,
     const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
@@ -142,6 +590,113 @@ static const NativeTextStyle* findTagStyle(
     it = map.find(tag);
     if (it != map.end()) return &it->second;
     return nullptr;
+}
+
+static void applyBlockOverrides(
+    HybridContentBlock* block,
+    const NativeTextStyle* overrideStyle,
+    StyleContext& ctx
+) {
+    if (!overrideStyle) return;
+    if (block) {
+        if (overrideStyle->fontSize.has_value() && overrideStyle->fontSize.value() > 0) block->fontSize_ = overrideStyle->fontSize.value();
+        if (overrideStyle->color.has_value() && !overrideStyle->color.value().empty()) block->color_ = overrideStyle->color.value();
+        if (overrideStyle->backgroundColor.has_value() && !overrideStyle->backgroundColor.value().empty()) block->backgroundColor_ = overrideStyle->backgroundColor.value();
+        if (overrideStyle->fontFamily.has_value() && !overrideStyle->fontFamily.value().empty()) block->fontFamily_ = overrideStyle->fontFamily.value();
+        if (overrideStyle->fontWeight.has_value() && !overrideStyle->fontWeight.value().empty()) block->fontWeight_ = overrideStyle->fontWeight.value();
+        if (overrideStyle->fontStyle.has_value() && !overrideStyle->fontStyle.value().empty()) block->fontStyle_ = overrideStyle->fontStyle.value();
+        if (overrideStyle->lineHeight.has_value() && overrideStyle->lineHeight.value() > 0) block->lineHeight_ = overrideStyle->lineHeight.value();
+        // Margin resolution (Specific > Directional > Standalone)
+        if (overrideStyle->margin.has_value()) {
+            block->marginTop_ = overrideStyle->margin.value();
+            block->marginBottom_ = overrideStyle->margin.value();
+            block->marginLeft_ = overrideStyle->margin.value();
+            block->marginRight_ = overrideStyle->margin.value();
+        }
+        if (overrideStyle->marginVertical.has_value()) {
+            block->marginTop_ = overrideStyle->marginVertical.value();
+            block->marginBottom_ = overrideStyle->marginVertical.value();
+        }
+        if (overrideStyle->marginHorizontal.has_value()) {
+            block->marginLeft_ = overrideStyle->marginHorizontal.value();
+            block->marginRight_ = overrideStyle->marginHorizontal.value();
+        }
+        if (overrideStyle->marginTop.has_value()) block->marginTop_ = overrideStyle->marginTop.value();
+        if (overrideStyle->marginBottom.has_value()) block->marginBottom_ = overrideStyle->marginBottom.value();
+        if (overrideStyle->marginLeft.has_value()) block->marginLeft_ = overrideStyle->marginLeft.value();
+        if (overrideStyle->marginRight.has_value()) block->marginRight_ = overrideStyle->marginRight.value();
+
+        // Padding resolution (Specific > Directional > Standalone)
+        if (overrideStyle->padding.has_value()) {
+            block->paddingTop_ = overrideStyle->padding.value();
+            block->paddingBottom_ = overrideStyle->padding.value();
+            block->paddingLeft_ = overrideStyle->padding.value();
+            block->paddingRight_ = overrideStyle->padding.value();
+        }
+        if (overrideStyle->paddingVertical.has_value()) {
+            block->paddingTop_ = overrideStyle->paddingVertical.value();
+            block->paddingBottom_ = overrideStyle->paddingVertical.value();
+        }
+        if (overrideStyle->paddingHorizontal.has_value()) {
+            block->paddingLeft_ = overrideStyle->paddingHorizontal.value();
+            block->paddingRight_ = overrideStyle->paddingHorizontal.value();
+        }
+        if (overrideStyle->paddingTop.has_value()) block->paddingTop_ = overrideStyle->paddingTop.value();
+        if (overrideStyle->paddingBottom.has_value()) block->paddingBottom_ = overrideStyle->paddingBottom.value();
+        if (overrideStyle->paddingLeft.has_value()) block->paddingLeft_ = overrideStyle->paddingLeft.value();
+        if (overrideStyle->paddingRight.has_value()) block->paddingRight_ = overrideStyle->paddingRight.value();
+
+        // Border resolution (Specific > Standalone)
+        if (overrideStyle->borderWidth.has_value()) block->borderLeftWidth_ = overrideStyle->borderWidth.value();
+        if (overrideStyle->borderColor.has_value() && !overrideStyle->borderColor.value().empty()) block->borderLeftColor_ = overrideStyle->borderColor.value();
+        if (overrideStyle->borderLeftWidth.has_value()) block->borderLeftWidth_ = overrideStyle->borderLeftWidth.value();
+        if (overrideStyle->borderLeftColor.has_value() && !overrideStyle->borderLeftColor.value().empty()) block->borderLeftColor_ = overrideStyle->borderLeftColor.value();
+        if (overrideStyle->borderRadius.has_value()) block->borderRadius_ = overrideStyle->borderRadius.value();
+
+        if (overrideStyle->textAlign.has_value()) block->textAlign_ = overrideStyle->textAlign.value();
+        if (overrideStyle->textTransform.has_value()) block->textTransform_ = overrideStyle->textTransform.value();
+        if (overrideStyle->textIndent.has_value()) block->textIndent_ = overrideStyle->textIndent.value();
+        if (overrideStyle->letterSpacing.has_value()) block->letterSpacing_ = overrideStyle->letterSpacing.value();
+        if (overrideStyle->opacity.has_value()) block->opacity_ = overrideStyle->opacity.value();
+        if (overrideStyle->fontFeatureSettings.has_value() && !overrideStyle->fontFeatureSettings.value().empty()) block->fontFeatureSettings_ = overrideStyle->fontFeatureSettings.value();
+    }
+
+    if (overrideStyle->fontSize.has_value() && overrideStyle->fontSize.value() > 0) ctx.fontSize = overrideStyle->fontSize.value();
+    if (overrideStyle->color.has_value() && !overrideStyle->color.value().empty()) ctx.color = overrideStyle->color.value();
+    if (overrideStyle->backgroundColor.has_value() && !overrideStyle->backgroundColor.value().empty()) ctx.backgroundColor = overrideStyle->backgroundColor.value();
+    if (overrideStyle->fontFamily.has_value() && !overrideStyle->fontFamily.value().empty()) ctx.fontFamily = overrideStyle->fontFamily.value();
+    if (overrideStyle->fontWeight.has_value() && !overrideStyle->fontWeight.value().empty()) ctx.fontWeight = overrideStyle->fontWeight.value();
+    if (overrideStyle->fontStyle.has_value() && !overrideStyle->fontStyle.value().empty()) ctx.fontStyle = overrideStyle->fontStyle.value();
+    if (overrideStyle->lineHeight.has_value() && overrideStyle->lineHeight.value() > 0) ctx.lineHeight = overrideStyle->lineHeight.value();
+    if (overrideStyle->letterSpacing.has_value()) ctx.letterSpacing = overrideStyle->letterSpacing.value();
+    if (overrideStyle->textTransform.has_value()) ctx.textTransform = overrideStyle->textTransform.value();
+    if (overrideStyle->textAlign.has_value()) ctx.textAlign = overrideStyle->textAlign.value();
+    if (overrideStyle->opacity.has_value()) ctx.opacity = overrideStyle->opacity.value();
+    if (overrideStyle->fontFeatureSettings.has_value() && !overrideStyle->fontFeatureSettings.value().empty()) ctx.fontFeatureSettings = overrideStyle->fontFeatureSettings.value();
+}
+
+static void applyNodeStyling(
+    HybridContentBlock* block,
+    lxb_dom_element_t* elem,
+    const std::string& tagName,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles,
+    StyleContext& ctx
+) {
+    // Tier 2: Apply tagStyle override (mid priority)
+    const NativeTextStyle* tagOverride = findTagStyle(tagName, tagsStyles);
+    if (tagOverride) {
+        applyBlockOverrides(block, tagOverride, ctx);
+    }
+
+    // Tier 3: Apply inline style="..." attribute (highest priority)
+    if (elem) {
+        std::string styleAttr = getAttribute(elem, "style");
+        if (!styleAttr.empty()) {
+            NativeTextStyle inlineStyle;
+            parseInlineCss(styleAttr, inlineStyle, ctx.fontSize);
+            applyBlockOverrides(block, &inlineStyle, ctx);
+        }
+    }
 }
 
 static std::shared_ptr<HybridInlineNode> parseInlineNode(
@@ -166,6 +721,7 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
         textNode->letterSpacing_ = parentCtx.letterSpacing;
         textNode->textTransform_ = parentCtx.textTransform;
         textNode->opacity_ = parentCtx.opacity;
+        textNode->fontFeatureSettings_ = parentCtx.fontFeatureSettings;
         return textNode;
     }
 
@@ -191,6 +747,7 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
         std::string textDecColor = "";
         std::string textDecStyle = "";
         double opacity = parentCtx.opacity;
+        std::string fontFeatureSettings = parentCtx.fontFeatureSettings;
         bool isUnderline = false;
         bool isStrikethrough = false;
         bool isLink = false;
@@ -268,7 +825,7 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
                 break;
         }
 
-        // Apply user tagStyle overrides if defined
+        // Tier 2: Apply user tagStyle overrides if defined
         const NativeTextStyle* tagOverride = findTagStyle(tagName, tagsStyles);
         if (tagOverride) {
             if (tagOverride->fontSize.has_value() && tagOverride->fontSize.value() > 0) fontSize = tagOverride->fontSize.value();
@@ -282,11 +839,39 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
             if (tagOverride->textDecorationColor.has_value()) textDecColor = tagOverride->textDecorationColor.value();
             if (tagOverride->textDecorationStyle.has_value()) textDecStyle = tagOverride->textDecorationStyle.value();
             if (tagOverride->opacity.has_value()) opacity = tagOverride->opacity.value();
+            if (tagOverride->fontFeatureSettings.has_value() && !tagOverride->fontFeatureSettings.value().empty()) fontFeatureSettings = tagOverride->fontFeatureSettings.value();
             if (tagOverride->textDecorationLine.has_value()) {
                 std::string line = tagOverride->textDecorationLine.value();
                 if (line.find("underline") != std::string::npos) isUnderline = true;
                 if (line.find("line-through") != std::string::npos) isStrikethrough = true;
                 if (line == "none") { isUnderline = false; isStrikethrough = false; }
+            }
+        }
+
+        // Tier 3: Apply inline style="..." attribute (highest priority)
+        if (elem) {
+            std::string styleAttr = getAttribute(elem, "style");
+            if (!styleAttr.empty()) {
+                NativeTextStyle inlineOverride;
+                parseInlineCss(styleAttr, inlineOverride, fontSize);
+                if (inlineOverride.fontSize.has_value() && inlineOverride.fontSize.value() > 0) fontSize = inlineOverride.fontSize.value();
+                if (inlineOverride.color.has_value() && !inlineOverride.color.value().empty()) color = inlineOverride.color.value();
+                if (inlineOverride.backgroundColor.has_value() && !inlineOverride.backgroundColor.value().empty()) backgroundColor = inlineOverride.backgroundColor.value();
+                if (inlineOverride.fontFamily.has_value() && !inlineOverride.fontFamily.value().empty()) fontFamily = inlineOverride.fontFamily.value();
+                if (inlineOverride.fontWeight.has_value() && !inlineOverride.fontWeight.value().empty()) fontWeight = inlineOverride.fontWeight.value();
+                if (inlineOverride.fontStyle.has_value() && !inlineOverride.fontStyle.value().empty()) fontStyle = inlineOverride.fontStyle.value();
+                if (inlineOverride.letterSpacing.has_value()) letterSpacing = inlineOverride.letterSpacing.value();
+                if (inlineOverride.textTransform.has_value()) textTransform = inlineOverride.textTransform.value();
+                if (inlineOverride.textDecorationColor.has_value()) textDecColor = inlineOverride.textDecorationColor.value();
+                if (inlineOverride.textDecorationStyle.has_value()) textDecStyle = inlineOverride.textDecorationStyle.value();
+                if (inlineOverride.opacity.has_value()) opacity = inlineOverride.opacity.value();
+                if (inlineOverride.fontFeatureSettings.has_value() && !inlineOverride.fontFeatureSettings.value().empty()) fontFeatureSettings = inlineOverride.fontFeatureSettings.value();
+                if (inlineOverride.textDecorationLine.has_value()) {
+                    std::string line = inlineOverride.textDecorationLine.value();
+                    if (line.find("underline") != std::string::npos) isUnderline = true;
+                    if (line.find("line-through") != std::string::npos) isStrikethrough = true;
+                    if (line == "none") { isUnderline = false; isStrikethrough = false; }
+                }
             }
         }
 
@@ -302,6 +887,7 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
         inlineNode->textDecorationColor_ = textDecColor;
         inlineNode->textDecorationStyle_ = textDecStyle;
         inlineNode->opacity_ = opacity;
+        inlineNode->fontFeatureSettings_ = fontFeatureSettings;
         inlineNode->isUnderline_ = isUnderline;
         inlineNode->isStrikethrough_ = isStrikethrough;
         inlineNode->isLink_ = isLink;
@@ -317,6 +903,7 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
         childCtx.letterSpacing = letterSpacing;
         childCtx.textTransform = textTransform;
         childCtx.opacity = opacity;
+        childCtx.fontFeatureSettings = fontFeatureSettings;
 
         lxb_dom_node_t* child = node->first_child;
         while (child) {
@@ -333,104 +920,28 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
 }
 
 static void collectInlineChildren(
-    lxb_dom_node_t* node,
-    std::vector<std::shared_ptr<HybridInlineNode>>& out,
+    lxb_dom_node_t* parent,
+    std::vector<std::shared_ptr<HybridInlineNode>>& inlines,
     const StyleContext& ctx,
     const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
 ) {
-    lxb_dom_node_t* child = node->first_child;
+    if (!parent) return;
+    lxb_dom_node_t* child = parent->first_child;
     while (child) {
         auto in = parseInlineNode(child, ctx, tagsStyles);
-        if (in) out.push_back(in);
+        if (in) {
+            inlines.push_back(in);
+        }
         child = child->next;
     }
 }
 
-// Forward declaration of DOM walker
 static void walkDomNode(
     lxb_dom_node_t* node,
     std::vector<std::shared_ptr<HybridContentBlock>>& blocks,
     const StyleContext& baseCtx,
     const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
 );
-
-static void applyBlockOverrides(
-    HybridContentBlock* block,
-    const NativeTextStyle* overrideStyle,
-    StyleContext& ctx
-) {
-    if (!overrideStyle) return;
-    if (overrideStyle->fontSize.has_value() && overrideStyle->fontSize.value() > 0) block->fontSize_ = overrideStyle->fontSize.value();
-    if (overrideStyle->color.has_value() && !overrideStyle->color.value().empty()) block->color_ = overrideStyle->color.value();
-    if (overrideStyle->backgroundColor.has_value() && !overrideStyle->backgroundColor.value().empty()) block->backgroundColor_ = overrideStyle->backgroundColor.value();
-    if (overrideStyle->fontFamily.has_value() && !overrideStyle->fontFamily.value().empty()) block->fontFamily_ = overrideStyle->fontFamily.value();
-    if (overrideStyle->fontWeight.has_value() && !overrideStyle->fontWeight.value().empty()) block->fontWeight_ = overrideStyle->fontWeight.value();
-    if (overrideStyle->fontStyle.has_value() && !overrideStyle->fontStyle.value().empty()) block->fontStyle_ = overrideStyle->fontStyle.value();
-    if (overrideStyle->lineHeight.has_value() && overrideStyle->lineHeight.value() > 0) block->lineHeight_ = overrideStyle->lineHeight.value();
-    // Margin resolution (Specific > Directional > Standalone)
-    if (overrideStyle->margin.has_value()) {
-        block->marginTop_ = overrideStyle->margin.value();
-        block->marginBottom_ = overrideStyle->margin.value();
-        block->marginLeft_ = overrideStyle->margin.value();
-        block->marginRight_ = overrideStyle->margin.value();
-    }
-    if (overrideStyle->marginVertical.has_value()) {
-        block->marginTop_ = overrideStyle->marginVertical.value();
-        block->marginBottom_ = overrideStyle->marginVertical.value();
-    }
-    if (overrideStyle->marginHorizontal.has_value()) {
-        block->marginLeft_ = overrideStyle->marginHorizontal.value();
-        block->marginRight_ = overrideStyle->marginHorizontal.value();
-    }
-    if (overrideStyle->marginTop.has_value()) block->marginTop_ = overrideStyle->marginTop.value();
-    if (overrideStyle->marginBottom.has_value()) block->marginBottom_ = overrideStyle->marginBottom.value();
-    if (overrideStyle->marginLeft.has_value()) block->marginLeft_ = overrideStyle->marginLeft.value();
-    if (overrideStyle->marginRight.has_value()) block->marginRight_ = overrideStyle->marginRight.value();
-
-    // Padding resolution (Specific > Directional > Standalone)
-    if (overrideStyle->padding.has_value()) {
-        block->paddingTop_ = overrideStyle->padding.value();
-        block->paddingBottom_ = overrideStyle->padding.value();
-        block->paddingLeft_ = overrideStyle->padding.value();
-        block->paddingRight_ = overrideStyle->padding.value();
-    }
-    if (overrideStyle->paddingVertical.has_value()) {
-        block->paddingTop_ = overrideStyle->paddingVertical.value();
-        block->paddingBottom_ = overrideStyle->paddingVertical.value();
-    }
-    if (overrideStyle->paddingHorizontal.has_value()) {
-        block->paddingLeft_ = overrideStyle->paddingHorizontal.value();
-        block->paddingRight_ = overrideStyle->paddingHorizontal.value();
-    }
-    if (overrideStyle->paddingTop.has_value()) block->paddingTop_ = overrideStyle->paddingTop.value();
-    if (overrideStyle->paddingBottom.has_value()) block->paddingBottom_ = overrideStyle->paddingBottom.value();
-    if (overrideStyle->paddingLeft.has_value()) block->paddingLeft_ = overrideStyle->paddingLeft.value();
-    if (overrideStyle->paddingRight.has_value()) block->paddingRight_ = overrideStyle->paddingRight.value();
-
-    // Border resolution (Specific > Standalone)
-    if (overrideStyle->borderWidth.has_value()) block->borderLeftWidth_ = overrideStyle->borderWidth.value();
-    if (overrideStyle->borderColor.has_value() && !overrideStyle->borderColor.value().empty()) block->borderLeftColor_ = overrideStyle->borderColor.value();
-    if (overrideStyle->borderLeftWidth.has_value()) block->borderLeftWidth_ = overrideStyle->borderLeftWidth.value();
-    if (overrideStyle->borderLeftColor.has_value() && !overrideStyle->borderLeftColor.value().empty()) block->borderLeftColor_ = overrideStyle->borderLeftColor.value();
-
-    if (overrideStyle->textAlign.has_value()) block->textAlign_ = overrideStyle->textAlign.value();
-    if (overrideStyle->textTransform.has_value()) block->textTransform_ = overrideStyle->textTransform.value();
-    if (overrideStyle->textIndent.has_value()) block->textIndent_ = overrideStyle->textIndent.value();
-    if (overrideStyle->letterSpacing.has_value()) block->letterSpacing_ = overrideStyle->letterSpacing.value();
-    if (overrideStyle->opacity.has_value()) block->opacity_ = overrideStyle->opacity.value();
-
-    ctx.fontSize = block->fontSize_;
-    ctx.color = block->color_;
-    ctx.backgroundColor = block->backgroundColor_;
-    ctx.fontFamily = block->fontFamily_;
-    ctx.fontWeight = block->fontWeight_;
-    ctx.fontStyle = block->fontStyle_;
-    ctx.lineHeight = block->lineHeight_;
-    ctx.letterSpacing = block->letterSpacing_;
-    ctx.textTransform = block->textTransform_;
-    ctx.textAlign = block->textAlign_;
-    ctx.opacity = block->opacity_;
-}
 
 static void walkDomChildren(
     lxb_dom_node_t* parent,
@@ -521,7 +1032,7 @@ static void walkDomNode(
         hCtx.fontSize = block->fontSize_;
         hCtx.fontWeight = block->fontWeight_;
         hCtx.color = block->color_;
-        applyBlockOverrides(block.get(), findTagStyle(tagName, tagsStyles), hCtx);
+        applyNodeStyling(block.get(), elem, tagName, tagsStyles, hCtx);
 
         collectInlineChildren(node, block->children_, hCtx, tagsStyles);
         blocks.push_back(block);
@@ -542,7 +1053,7 @@ static void walkDomNode(
         block->marginBottom_ = 12.0;
 
         StyleContext pCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle("p", tagsStyles), pCtx);
+        applyNodeStyling(block.get(), elem, "p", tagsStyles, pCtx);
 
         collectInlineChildren(node, block->children_, pCtx, tagsStyles);
         blocks.push_back(block);
@@ -556,7 +1067,7 @@ static void walkDomNode(
         block->fontSize_ = baseCtx.fontSize;
         block->fontStyle_ = "italic";
         block->color_ = "#334155";
-        block->backgroundColor_ = "#F8FAFC";
+        block->backgroundColor_ = "#FAF5FF";
         block->fontFamily_ = baseCtx.fontFamily;
         block->marginLeft_ = 20.0;
         block->marginRight_ = 20.0;
@@ -566,7 +1077,7 @@ static void walkDomNode(
         block->borderLeftColor_ = "#94A3B8";
 
         StyleContext qCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle(tagName, tagsStyles), qCtx);
+        applyNodeStyling(block.get(), elem, tagName, tagsStyles, qCtx);
 
         bool hasBlockChildren = false;
         lxb_dom_node_t* child = node->first_child;
@@ -627,7 +1138,7 @@ static void walkDomNode(
         preCtx.fontSize = block->fontSize_;
         preCtx.color = block->color_;
         preCtx.backgroundColor = block->backgroundColor_;
-        applyBlockOverrides(block.get(), findTagStyle("pre", tagsStyles), preCtx);
+        applyNodeStyling(block.get(), elem, "pre", tagsStyles, preCtx);
 
         lxb_dom_node_t* codeNode = nullptr;
         lxb_dom_node_t* c = node->first_child;
@@ -667,19 +1178,23 @@ static void walkDomNode(
         block->html_ = serializeNodeHtml(node);
 
         StyleContext listCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle(tagName, tagsStyles), listCtx);
+        applyNodeStyling(block.get(), elem, tagName, tagsStyles, listCtx);
 
         lxb_dom_node_t* li = node->first_child;
         while (li) {
             if (li->type == LXB_DOM_NODE_TYPE_ELEMENT && lxb_dom_node_tag_id(li) == LXB_TAG_LI) {
                 auto item = std::make_shared<HybridListItem>();
+                StyleContext liCtx = listCtx;
+                lxb_dom_element_t* liElem = lxb_dom_interface_element(li);
+                applyNodeStyling(nullptr, liElem, "li", tagsStyles, liCtx);
+
                 lxb_dom_node_t* liChild = li->first_child;
                 while (liChild) {
                     if (liChild->type == LXB_DOM_NODE_TYPE_ELEMENT) {
                         lxb_tag_id_t liChildTag = lxb_dom_node_tag_id(liChild);
                         if (liChildTag == LXB_TAG_UL || liChildTag == LXB_TAG_OL) {
                             std::vector<std::shared_ptr<HybridContentBlock>> nestedBlocks;
-                            walkDomNode(liChild, nestedBlocks, listCtx, tagsStyles);
+                            walkDomNode(liChild, nestedBlocks, liCtx, tagsStyles);
                             for (auto& nb : nestedBlocks) {
                                 item->nested_.push_back(nb);
                             }
@@ -687,7 +1202,7 @@ static void walkDomNode(
                             continue;
                         }
                     }
-                    auto inlineChild = parseInlineNode(liChild, listCtx, tagsStyles);
+                    auto inlineChild = parseInlineNode(liChild, liCtx, tagsStyles);
                     if (inlineChild) {
                         item->children_.push_back(inlineChild);
                     }
@@ -719,7 +1234,7 @@ static void walkDomNode(
         tableCtx.fontSize = block->fontSize_;
         tableCtx.color = block->color_;
         tableCtx.fontFamily = block->fontFamily_;
-        applyBlockOverrides(block.get(), findTagStyle("table", tagsStyles), tableCtx);
+        applyNodeStyling(block.get(), elem, "table", tagsStyles, tableCtx);
 
         auto processRow = [&](lxb_dom_node_t* tr) {
             auto row = std::make_shared<HybridTableRow>();
@@ -731,6 +1246,8 @@ static void walkDomNode(
                         auto tableCell = std::make_shared<HybridTableCell>();
                         StyleContext cellCtx = tableCtx;
                         if (cellTag == LXB_TAG_TH) cellCtx.fontWeight = "bold";
+                        lxb_dom_element_t* cellElem = lxb_dom_interface_element(cell);
+                        applyNodeStyling(nullptr, cellElem, cellTag == LXB_TAG_TH ? "th" : "td", tagsStyles, cellCtx);
                         collectInlineChildren(cell, tableCell->children_, cellCtx, tagsStyles);
                         row->cells_.push_back(tableCell);
                     }
@@ -793,17 +1310,19 @@ static void walkDomNode(
         block->marginBottom_ = 12.0;
 
         StyleContext dlCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle("dl", tagsStyles), dlCtx);
+        applyNodeStyling(block.get(), elem, "dl", tagsStyles, dlCtx);
 
         lxb_dom_node_t* dlChild = node->first_child;
         std::shared_ptr<HybridDefinitionItem> currentItem = nullptr;
         while (dlChild) {
             if (dlChild->type == LXB_DOM_NODE_TYPE_ELEMENT) {
                 lxb_tag_id_t tid = lxb_dom_node_tag_id(dlChild);
+                lxb_dom_element_t* dlChildElem = lxb_dom_interface_element(dlChild);
                 if (tid == LXB_TAG_DT) {
                     currentItem = std::make_shared<HybridDefinitionItem>();
                     StyleContext dtCtx = dlCtx;
                     dtCtx.fontWeight = "bold";
+                    applyNodeStyling(nullptr, dlChildElem, "dt", tagsStyles, dtCtx);
                     collectInlineChildren(dlChild, currentItem->terms_, dtCtx, tagsStyles);
                     block->defItems_.push_back(currentItem);
                 } else if (tid == LXB_TAG_DD) {
@@ -811,7 +1330,9 @@ static void walkDomNode(
                         currentItem = std::make_shared<HybridDefinitionItem>();
                         block->defItems_.push_back(currentItem);
                     }
-                    collectInlineChildren(dlChild, currentItem->defs_, dlCtx, tagsStyles);
+                    StyleContext ddCtx = dlCtx;
+                    applyNodeStyling(nullptr, dlChildElem, "dd", tagsStyles, ddCtx);
+                    collectInlineChildren(dlChild, currentItem->defs_, ddCtx, tagsStyles);
                 }
             }
             dlChild = dlChild->next;
@@ -855,7 +1376,7 @@ static void walkDomNode(
         block->backgroundColor_ = "#F1F5F9";
 
         StyleContext imgCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle("img", tagsStyles), imgCtx);
+        applyNodeStyling(block.get(), elem, "img", tagsStyles, imgCtx);
 
         std::string label = "🖼️ " + (!block->alt_.empty() ? "[" + block->alt_ + "]" : "[Image]");
         auto imgNode = std::make_shared<HybridInlineNode>("Text", label, "");
@@ -880,7 +1401,7 @@ static void walkDomNode(
         block->paddingTop_ = 4.0;
 
         StyleContext figCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle("figure", tagsStyles), figCtx);
+        applyNodeStyling(block.get(), elem, "figure", tagsStyles, figCtx);
 
         std::function<void(lxb_dom_node_t*)> scanFigure = [&](lxb_dom_node_t* fNode) {
             lxb_dom_node_t* c = fNode->first_child;
@@ -972,7 +1493,7 @@ static void walkDomNode(
         block->lineHeight_ = 1.0;
 
         StyleContext hrCtx = baseCtx;
-        applyBlockOverrides(block.get(), findTagStyle("hr", tagsStyles), hrCtx);
+        applyNodeStyling(block.get(), elem, "hr", tagsStyles, hrCtx);
 
         blocks.push_back(block);
         return;
@@ -984,7 +1505,9 @@ static void walkDomNode(
         tagId == LXB_TAG_ASIDE || tagId == LXB_TAG_NAV || tagId == LXB_TAG_BODY ||
         tagId == LXB_TAG_HTML || tagId == LXB_TAG_CENTER || tagId == LXB_TAG_FORM ||
         tagId == LXB_TAG_FIELDSET) {
-        walkDomChildren(node, blocks, baseCtx, tagsStyles);
+        StyleContext divCtx = baseCtx;
+        applyNodeStyling(nullptr, elem, tagName, tagsStyles, divCtx);
+        walkDomChildren(node, blocks, divCtx, tagsStyles);
         return;
     }
 
@@ -999,26 +1522,25 @@ static void walkDomNode(
         block->src_ = getAttribute(elem, "src");
         block->title_ = getAttribute(elem, "title");
         block->alt_ = getAttribute(elem, "id");
-        collectInlineChildren(node, block->children_, baseCtx, tagsStyles);
+        StyleContext customCtx = baseCtx;
+        applyNodeStyling(block.get(), elem, tagName, tagsStyles, customCtx);
+        collectInlineChildren(node, block->children_, customCtx, tagsStyles);
         blocks.push_back(block);
         return;
     }
 
-    // Fallback
-    std::vector<std::shared_ptr<HybridInlineNode>> inlines;
-    collectInlineChildren(node, inlines, baseCtx, tagsStyles);
-    if (!inlines.empty()) {
+    // Fallback: Inline phrasing element (e.g. <cite>, <span>, <em>, <strong>, <a>, <q>) or generic element at root
+    auto in = parseInlineNode(node, baseCtx, tagsStyles);
+    if (in) {
         auto p = std::make_shared<HybridContentBlock>("Paragraph");
         p->html_ = serializeNodeHtml(node);
-        p->fontSize_ = baseCtx.fontSize;
-        p->color_ = baseCtx.color;
-        p->fontFamily_ = baseCtx.fontFamily;
+        p->fontSize_ = in->fontSize_;
+        p->color_ = in->color_;
+        p->fontFamily_ = in->fontFamily_;
+        p->fontWeight_ = in->fontWeight_;
+        p->fontStyle_ = in->fontStyle_;
         p->marginBottom_ = 12.0;
-        p->children_ = std::move(inlines);
-
-        StyleContext fbCtx = baseCtx;
-        applyBlockOverrides(p.get(), findTagStyle(tagName, tagsStyles), fbCtx);
-
+        p->children_.push_back(in);
         blocks.push_back(p);
     }
 }
@@ -1055,6 +1577,7 @@ static std::string computeStyleSignature(
         if (b.fontWeight.has_value()) sig += "fw:" + b.fontWeight.value() + ";";
         if (b.fontStyle.has_value()) sig += "fst:" + b.fontStyle.value() + ";";
         if (b.lineHeight.has_value()) sig += "lh:" + std::to_string(b.lineHeight.value()) + ";";
+        if (b.fontFeatureSettings.has_value()) sig += "ffs:" + b.fontFeatureSettings.value() + ";";
     }
     if (tagsStyles.has_value()) {
         sig += "ts:" + std::to_string(tagsStyles.value().size()) + ";";
@@ -1062,6 +1585,10 @@ static std::string computeStyleSignature(
             sig += pair.first + ":";
             if (pair.second.fontSize.has_value()) sig += std::to_string(pair.second.fontSize.value());
             if (pair.second.color.has_value()) sig += pair.second.color.value();
+            if (pair.second.fontFamily.has_value()) sig += pair.second.fontFamily.value();
+            if (pair.second.fontWeight.has_value()) sig += pair.second.fontWeight.value();
+            if (pair.second.fontStyle.has_value()) sig += pair.second.fontStyle.value();
+            if (pair.second.fontFeatureSettings.has_value()) sig += pair.second.fontFeatureSettings.value();
             sig += "|";
         }
     }
@@ -1133,6 +1660,7 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
                 if (b.fontWeight.has_value() && !b.fontWeight.value().empty()) baseCtx.fontWeight = b.fontWeight.value();
                 if (b.fontStyle.has_value() && !b.fontStyle.value().empty()) baseCtx.fontStyle = b.fontStyle.value();
                 if (b.lineHeight.has_value() && b.lineHeight.value() > 0) baseCtx.lineHeight = b.lineHeight.value();
+                if (b.fontFeatureSettings.has_value() && !b.fontFeatureSettings.value().empty()) baseCtx.fontFeatureSettings = b.fontFeatureSettings.value();
             }
             walkDomChildren(rootNode, blocks, baseCtx, tagsStyles);
         }
@@ -1212,6 +1740,7 @@ static void inlineNodeToJson(const std::shared_ptr<HybridInlineNode>& node, std:
     out += "\"isStrikethrough\":" + std::string(node->isStrikethrough_ ? "true" : "false") + ",";
     out += "\"isLink\":" + std::string(node->isLink_ ? "true" : "false") + ",";
     out += "\"baselineShift\":" + std::to_string(node->baselineShift_) + ",";
+    out += "\"fontFeatureSettings\":\"" + escapeJson(node->fontFeatureSettings_) + "\",";
     out += "\"children\":[";
     for (size_t i = 0; i < node->children_.size(); ++i) {
         if (i > 0) out += ",";
@@ -1246,6 +1775,8 @@ static void contentBlockToJson(const std::shared_ptr<HybridContentBlock>& block,
     out += "\"paddingRight\":" + std::to_string(block->paddingRight_) + ",";
     out += "\"borderLeftColor\":\"" + escapeJson(block->borderLeftColor_) + "\",";
     out += "\"borderLeftWidth\":" + std::to_string(block->borderLeftWidth_) + ",";
+    out += "\"borderRadius\":" + std::to_string(block->borderRadius_) + ",";
+    out += "\"fontFeatureSettings\":\"" + escapeJson(block->fontFeatureSettings_) + "\",";
     out += "\"opacity\":" + std::to_string(block->opacity_) + ",";
     out += "\"code\":\"" + escapeJson(block->code_) + "\",";
     out += "\"language\":\"" + escapeJson(block->language_) + "\",";
@@ -1405,6 +1936,8 @@ static NativeTextStyle parseStyleObject(const std::string& json) {
     if (!blc.empty()) s.borderLeftColor = blc;
     double blw = extractJsonDouble(json, "borderLeftWidth", 0.0);
     if (blw > 0) s.borderLeftWidth = blw;
+    std::string ffs = extractJsonString(json, "fontFeatureSettings");
+    if (!ffs.empty()) s.fontFeatureSettings = ffs;
     return s;
 }
 

@@ -31,6 +31,19 @@ private final class TextViewDelegateShim: NSObject, UITextViewDelegate {
   }
 }
 
+private struct CachedBlockBackground {
+  let layer: CALayer
+  let range: NSRange
+  let color: UIColor
+  let borderRadius: CGFloat
+  let paddingLeft: CGFloat
+  let paddingRight: CGFloat
+  let paddingTop: CGFloat
+  let paddingBottom: CGFloat
+  let marginLeft: CGFloat
+  let marginRight: CGFloat
+}
+
 private struct CachedSeparator {
   let layer: CALayer
   let range: NSRange
@@ -74,6 +87,7 @@ private struct CachedTableViewItem {
 
 final class FastHtmlTextView: UITextView {
   private static let imageCache = NSCache<NSString, UIImage>()
+  private var cachedBlockBackgrounds: [CachedBlockBackground] = []
   private var cachedSeparators: [CachedSeparator] = []
   private var cachedBorders: [CachedBorder] = []
   private var cachedImages: [CachedImageViewItem] = []
@@ -88,10 +102,17 @@ final class FastHtmlTextView: UITextView {
     let textContainer = NSTextContainer(size: .zero)
     layoutManager.addTextContainer(textContainer)
     super.init(frame: .zero, textContainer: textContainer)
+    self.isEditable = false
+    self.isSelectable = true
+    self.isScrollEnabled = false
+    self.backgroundColor = .clear
+    self.textContainerInset = .zero
+    self.textContainer.lineFragmentPadding = 0
+    self.textContainer.widthTracksTextView = true
   }
 
   required init?(coder: NSCoder) {
-    super.init(coder: coder)
+    fatalError("init(coder:) has not been implemented")
   }
 
   deinit {
@@ -108,6 +129,9 @@ final class FastHtmlTextView: UITextView {
     cancelPendingDownloads()
 
     // 2. Remove previous layers and subviews
+    cachedBlockBackgrounds.forEach { $0.layer.removeFromSuperlayer() }
+    cachedBlockBackgrounds.removeAll()
+
     cachedSeparators.forEach { $0.layer.removeFromSuperlayer() }
     cachedSeparators.removeAll()
 
@@ -122,7 +146,45 @@ final class FastHtmlTextView: UITextView {
 
     guard attr.length > 0 else { return }
 
-    // 3. Instantiate Separators
+    // 3. Instantiate Block Backgrounds
+    attr.enumerateAttribute(
+      NSAttributedString.Key("FastHtmlBlockBackground"),
+      in: NSRange(location: 0, length: attr.length),
+      options: []
+    ) { [weak self] value, range, _ in
+      guard let self = self,
+            let dict = value as? NSDictionary,
+            let color = dict["color"] as? UIColor else { return }
+      let borderRadius = CGFloat((dict["borderRadius"] as? NSNumber)?.doubleValue ?? 0.0)
+      let paddingLeft = CGFloat((dict["paddingLeft"] as? NSNumber)?.doubleValue ?? 0.0)
+      let paddingRight = CGFloat((dict["paddingRight"] as? NSNumber)?.doubleValue ?? 0.0)
+      let paddingTop = CGFloat((dict["paddingTop"] as? NSNumber)?.doubleValue ?? 0.0)
+      let paddingBottom = CGFloat((dict["paddingBottom"] as? NSNumber)?.doubleValue ?? 0.0)
+      let marginLeft = CGFloat((dict["marginLeft"] as? NSNumber)?.doubleValue ?? 0.0)
+      let marginRight = CGFloat((dict["marginRight"] as? NSNumber)?.doubleValue ?? 0.0)
+
+      let bgLayer = CALayer()
+      bgLayer.backgroundColor = color.cgColor
+      if borderRadius > 0 {
+        bgLayer.cornerRadius = borderRadius
+        bgLayer.masksToBounds = true
+      }
+      self.layer.insertSublayer(bgLayer, at: 0)
+      self.cachedBlockBackgrounds.append(CachedBlockBackground(
+        layer: bgLayer,
+        range: range,
+        color: color,
+        borderRadius: borderRadius,
+        paddingLeft: paddingLeft,
+        paddingRight: paddingRight,
+        paddingTop: paddingTop,
+        paddingBottom: paddingBottom,
+        marginLeft: marginLeft,
+        marginRight: marginRight
+      ))
+    }
+
+    // 4. Instantiate Separators
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlSeparatorData"),
       in: NSRange(location: 0, length: attr.length),
@@ -139,7 +201,7 @@ final class FastHtmlTextView: UITextView {
       self.cachedSeparators.append(CachedSeparator(layer: sepLayer, range: range, height: hrHeight, color: color))
     }
 
-    // 4. Instantiate Borders
+    // 5. Instantiate Borders
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlBorderLeft"),
       in: NSRange(location: 0, length: attr.length),
@@ -158,7 +220,7 @@ final class FastHtmlTextView: UITextView {
       self.cachedBorders.append(CachedBorder(layer: borderLayer, range: range, width: width, inset: inset, color: color))
     }
 
-    // 5. Instantiate Images
+    // 6. Instantiate Images
     attr.enumerateAttribute(
       NSAttributedString.Key("FastHtmlImageData"),
       in: NSRange(location: 0, length: attr.length),
@@ -179,7 +241,12 @@ final class FastHtmlTextView: UITextView {
       let imageView = UIImageView(frame: .zero)
       imageView.contentMode = .scaleAspectFill
       imageView.clipsToBounds = true
-      imageView.layer.cornerRadius = 8.0
+      let imgBorderRadius = CGFloat((dict["borderRadius"] as? NSNumber)?.doubleValue ?? 0.0)
+      if imgBorderRadius > 0 {
+        imageView.layer.cornerRadius = imgBorderRadius
+      } else {
+        imageView.layer.cornerRadius = 0.0
+      }
       imageView.backgroundColor = UIColor(red: 0.94, green: 0.96, blue: 0.98, alpha: 1.0)
 
       let captionLabel: UILabel?
@@ -320,6 +387,26 @@ final class FastHtmlTextView: UITextView {
     guard let attr = attributedText, attr.length > 0 else { return }
     self.layoutManager.ensureLayout(for: self.textContainer)
     let availW = max(bounds.width - textContainerInset.left - textContainerInset.right, 200.0)
+
+    // Layout Block Backgrounds
+    for item in cachedBlockBackgrounds {
+      let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      if blockRect.width <= 0 || blockRect.height <= 0 { continue }
+      blockRect.origin.x += textContainerInset.left
+      blockRect.origin.y += textContainerInset.top
+
+      let xPos = textContainerInset.left + item.marginLeft
+      let width = max(availW - item.marginLeft - item.marginRight, 10.0)
+      item.layer.frame = CGRect(x: xPos, y: blockRect.origin.y, width: width, height: blockRect.height)
+      if item.borderRadius > 0 {
+        item.layer.cornerRadius = item.borderRadius
+        item.layer.masksToBounds = true
+      } else {
+        item.layer.cornerRadius = 0
+        item.layer.masksToBounds = false
+      }
+    }
 
     // Layout Separators
     for item in cachedSeparators {
@@ -475,14 +562,6 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
     didSet {
       if oldValue != selectable {
         textView.isSelectable = selectable ?? true
-      }
-    }
-  }
-
-  public var themeMode: String? {
-    didSet {
-      if oldValue != themeMode {
-        setNeedsContentUpdate()
       }
     }
   }

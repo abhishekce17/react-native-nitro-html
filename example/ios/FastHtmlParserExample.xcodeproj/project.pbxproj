@@ -12,6 +12,8 @@
 		25742F5E74ACCA2A06B66324 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		F0A1B2C3D4E5F6A7B8C90101 /* Pacifico-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F6A7B8C90102 /* Pacifico-Regular.ttf */; };
+		F0A1B2C3D4E5F6A7B8C90103 /* Cinzel-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F0A1B2C3D4E5F6A7B8C90104 /* Cinzel-Bold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +27,8 @@
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = FastHtmlParserExample/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = FastHtmlParserExample/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		F0A1B2C3D4E5F6A7B8C90102 /* Pacifico-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Pacifico-Regular.ttf"; path = "FastHtmlParserExample/Pacifico-Regular.ttf"; sourceTree = "<group>"; };
+		F0A1B2C3D4E5F6A7B8C90104 /* Cinzel-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Cinzel-Bold.ttf"; path = "FastHtmlParserExample/Cinzel-Bold.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +51,8 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				F0A1B2C3D4E5F6A7B8C90102 /* Pacifico-Regular.ttf */,
+				F0A1B2C3D4E5F6A7B8C90104 /* Cinzel-Bold.ttf */,
 			);
 			name = FastHtmlParserExample;
 			sourceTree = "<group>";
@@ -161,6 +167,8 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				25742F5E74ACCA2A06B66324 /* PrivacyInfo.xcprivacy in Resources */,
+				F0A1B2C3D4E5F6A7B8C90101 /* Pacifico-Regular.ttf in Resources */,
+				F0A1B2C3D4E5F6A7B8C90103 /* Cinzel-Bold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

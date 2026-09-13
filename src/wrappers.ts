@@ -129,3 +129,31 @@ export function getDefItems(
   }
   return defItems;
 }
+
+/**
+ * Returns all term inline nodes from a DefinitionItem.
+ */
+export function getTerms(item: DefinitionItem | null | undefined): InlineNode[] {
+  if (!item) return [];
+  const terms: InlineNode[] = [];
+  const len = item.termCount;
+  for (let i = 0; i < len; i++) {
+    const term = item.getTerm(i);
+    if (term) terms.push(term);
+  }
+  return terms;
+}
+
+/**
+ * Returns all definition inline nodes from a DefinitionItem.
+ */
+export function getDefs(item: DefinitionItem | null | undefined): InlineNode[] {
+  if (!item) return [];
+  const defs: InlineNode[] = [];
+  const len = item.defCount;
+  for (let i = 0; i < len; i++) {
+    const def = item.getDef(i);
+    if (def) defs.push(def);
+  }
+  return defs;
+}

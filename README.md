@@ -255,7 +255,6 @@ Because it operates natively, it creates **0 React Virtual DOM nodes** for text,
 | `tagsStyles` | `Record<string, TextStyle \| ViewStyle>` | `{}` | Style overrides keyed by tag name (`h1`, `p`, `a`, `code`, `blockquote`, etc.). |
 | `renderers` | `Record<string, CustomBlockRenderer>` | `{}` | Custom React component overrides for block types (Video, Polls, Code, etc.). |
 | `selectable` | `boolean` | `true` | Enables continuous multi-paragraph text selection & copy-paste. |
-| `themeMode` | `'light' \| 'dark' \| 'auto'` | `'auto'` | Force `'light'` or `'dark'` theme mode, or `'auto'` to adapt to system dark mode. |
 | `fontFeatureSettings`| `string` | `undefined` | OpenType font feature settings (e.g. `'"tnum" 1'`, `'"liga" 1'`). |
 | `onLinkPress` | `(url: string) => void` | `undefined` | Callback triggered when an `<a>` anchor link is pressed. |
 | `style` | `ViewStyle` | `undefined` | Container style for the root `<View>`. |

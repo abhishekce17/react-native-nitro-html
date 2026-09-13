@@ -56,5 +56,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Pacifico-Regular.ttf</string>
+		<string>Cinzel-Bold.ttf</string>
+		<string>JetBrainsMono-Bold.ttf</string>
+	</array>
 </dict>
 </plist>

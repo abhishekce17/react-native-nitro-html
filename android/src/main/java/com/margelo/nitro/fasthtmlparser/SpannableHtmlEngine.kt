@@ -1,7 +1,10 @@
 package com.margelo.nitro.fasthtmlparser
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.text.Spannable
 import android.text.SpannableStringBuilder
@@ -11,7 +14,226 @@ import android.view.View
 import org.json.JSONArray
 import org.json.JSONObject
 
+class BlockBackgroundSpan(
+    private val backgroundColor: Int,
+    private val borderRadiusPx: Float = 0f,
+    private val marginLeftPx: Float = 0f,
+    private val marginRightPx: Float = 0f
+) : LineBackgroundSpan {
+    private val rect = RectF()
+
+    override fun drawBackground(
+        canvas: Canvas,
+        paint: Paint,
+        left: Int,
+        right: Int,
+        top: Int,
+        baseline: Int,
+        bottom: Int,
+        text: CharSequence,
+        start: Int,
+        end: Int,
+        lineNumber: Int
+    ) {
+        val prevColor = paint.color
+        paint.color = backgroundColor
+        rect.set(
+            left.toFloat() + marginLeftPx,
+            top.toFloat(),
+            right.toFloat() - marginRightPx,
+            bottom.toFloat()
+        )
+        if (borderRadiusPx > 0f) {
+            canvas.drawRoundRect(rect, borderRadiusPx, borderRadiusPx, paint)
+        } else {
+            canvas.drawRect(rect, paint)
+        }
+        paint.color = prevColor
+    }
+}
+
+class FontFeatureSpan(private val featureSettings: String) : MetricAffectingSpan() {
+    override fun updateDrawState(tp: TextPaint) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            tp.fontFeatureSettings = featureSettings
+        }
+    }
+    override fun updateMeasureState(tp: TextPaint) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            tp.fontFeatureSettings = featureSettings
+        }
+    }
+}
+
+class CustomTypefaceSpan(
+    private val family: String,
+    private val weight: String = "",
+    private val fontStyle: String = "",
+    private val context: Context? = null
+) : MetricAffectingSpan() {
+    override fun updateDrawState(tp: TextPaint) {
+        tp.typeface = SpannableHtmlEngine.resolveTypeface(context, family, weight, fontStyle)
+    }
+    override fun updateMeasureState(tp: TextPaint) {
+        tp.typeface = SpannableHtmlEngine.resolveTypeface(context, family, weight, fontStyle)
+    }
+}
+
 object SpannableHtmlEngine {
+
+    private val typefaceCache = java.util.concurrent.ConcurrentHashMap<String, Typeface>()
+
+    @JvmStatic
+    fun resolveTypeface(context: Context?, family: String?, weight: String?, fontStyle: String?): Typeface {
+        val isBold = weight == "bold" || weight == "700" || weight == "800" || weight == "900" || weight == "600" || weight == "semibold" || weight == "semi-bold" || weight == "heavy" || weight == "black"
+        val isItalic = fontStyle == "italic"
+        val styleInt = when {
+            isBold && isItalic -> Typeface.BOLD_ITALIC
+            isBold -> Typeface.BOLD
+            isItalic -> Typeface.ITALIC
+            else -> Typeface.NORMAL
+        }
+
+        val rawFam = family?.trim() ?: ""
+        if (rawFam.isEmpty()) {
+            return Typeface.defaultFromStyle(styleInt)
+        }
+
+        val cacheKey = "$rawFam|$weight|$fontStyle"
+        typefaceCache[cacheKey]?.let { return it }
+
+        val defaultForStyle = Typeface.defaultFromStyle(styleInt)
+
+        val candidates = rawFam.split(",").map { it.trim().trim('\'', '"') }.filter { it.isNotEmpty() }
+        for (cand in candidates) {
+            val lower = cand.lowercase()
+            val tf: Typeface? = when (lower) {
+                "monospace" -> Typeface.create(Typeface.MONOSPACE, styleInt)
+                "serif" -> Typeface.create(Typeface.SERIF, styleInt)
+                "sans-serif", "system-ui", "system" -> Typeface.create(Typeface.SANS_SERIF, styleInt)
+                "cursive" -> Typeface.create(Typeface.SERIF, Typeface.ITALIC)
+                "fantasy" -> Typeface.create(Typeface.SERIF, styleInt)
+                else -> {
+                    // 1. Resolve via React Native ReactFontManager (handles any custom font registered or placed in assets)
+                    var loaded: Typeface? = null
+                    var isCustomAsset = false
+                    if (context != null) {
+                        try {
+                            val rfmClass = Class.forName("com.facebook.react.views.text.ReactFontManager")
+                            val getInstanceMethod = rfmClass.getMethod("getInstance")
+                            val instance = getInstanceMethod.invoke(null)
+                            val getTypefaceMethod = rfmClass.getMethod(
+                                "getTypeface",
+                                String::class.java,
+                                Int::class.javaPrimitiveType,
+                                android.content.res.AssetManager::class.java
+                            )
+                            val rfmResult = getTypefaceMethod.invoke(instance, cand, styleInt, context.assets) as? Typeface
+                            if (rfmResult != null && rfmResult != Typeface.DEFAULT && rfmResult != defaultForStyle) {
+                                loaded = rfmResult
+                                isCustomAsset = true
+                            }
+                        } catch (_: Throwable) {}
+                    }
+
+                    // 2. Direct asset search in fonts/ and root assets (including weight & style variant suffixes)
+                    if (loaded == null && context != null) {
+                        val assetPaths = linkedSetOf(
+                            "fonts/$cand.ttf", "fonts/$cand.otf",
+                            "$cand.ttf", "$cand.otf"
+                        )
+                        if (isBold && isItalic) {
+                            assetPaths.addAll(listOf(
+                                "fonts/${cand}-BoldItalic.ttf", "fonts/${cand}-BoldItalic.otf",
+                                "fonts/${cand}_bold_italic.ttf", "fonts/${cand}_bold_italic.otf",
+                                "fonts/${cand}BoldItalic.ttf", "fonts/${cand}BoldItalic.otf",
+                                "fonts/${cand}-Bold.ttf", "fonts/${cand}-Bold.otf"
+                            ))
+                        } else if (isBold) {
+                            assetPaths.addAll(listOf(
+                                "fonts/${cand}-Bold.ttf", "fonts/${cand}-Bold.otf",
+                                "fonts/${cand}_bold.ttf", "fonts/${cand}_bold.otf",
+                                "fonts/${cand}Bold.ttf", "fonts/${cand}Bold.otf"
+                            ))
+                        } else if (isItalic) {
+                            assetPaths.addAll(listOf(
+                                "fonts/${cand}-Italic.ttf", "fonts/${cand}-Italic.otf",
+                                "fonts/${cand}_italic.ttf", "fonts/${cand}_italic.otf",
+                                "fonts/${cand}Italic.ttf", "fonts/${cand}Italic.otf"
+                            ))
+                        }
+                        assetPaths.addAll(listOf(
+                            "fonts/${cand}-Regular.ttf", "fonts/${cand}-Regular.otf",
+                            "fonts/${cand}_regular.ttf", "fonts/${cand}_regular.otf",
+                            "fonts/${cand}Regular.ttf", "fonts/${cand}Regular.otf"
+                        ))
+
+                        if (cand.contains("-") || cand.contains("_")) {
+                            val baseName = cand.split("-", "_")[0]
+                            assetPaths.addAll(listOf(
+                                "fonts/$baseName.ttf", "fonts/$baseName.otf",
+                                "fonts/${baseName}-Bold.ttf", "fonts/${baseName}-Bold.otf",
+                                "fonts/${baseName}-Regular.ttf", "fonts/${baseName}-Regular.otf"
+                            ))
+                        }
+
+                        for (ap in assetPaths) {
+                            try {
+                                val assetTf = Typeface.createFromAsset(context.assets, ap)
+                                if (assetTf != null) {
+                                    loaded = assetTf
+                                    isCustomAsset = true
+                                    break
+                                }
+                            } catch (_: Throwable) {}
+                        }
+                    }
+
+                    // 3. System installed font lookup
+                    if (loaded == null) {
+                        try {
+                            val created = Typeface.create(cand, styleInt)
+                            if (created != null && created != Typeface.DEFAULT && created != defaultForStyle) {
+                                loaded = created
+                            } else if (created != null && (lower == "roboto" || lower.contains("sans"))) {
+                                loaded = created
+                            }
+                        } catch (_: Throwable) {}
+                    }
+
+                    // 4. Apply fine-grained numeric weight on Android P+ (API 28+) ONLY for system fonts
+                    if (loaded != null && !isCustomAsset && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P && !weight.isNullOrEmpty()) {
+                        try {
+                            val numericWeight = when (weight.lowercase()) {
+                                "900", "black" -> 900
+                                "800", "heavy" -> 800
+                                "700", "bold" -> 700
+                                "600", "semibold", "semi-bold" -> 600
+                                "500", "medium" -> 500
+                                "400", "normal", "regular" -> 400
+                                "300", "light" -> 300
+                                "200", "ultralight", "extra-light" -> 200
+                                "100", "thin" -> 100
+                                else -> 400
+                            }
+                            val styled = Typeface.create(loaded, numericWeight, isItalic)
+                            if (styled != null && (styled != Typeface.DEFAULT || loaded == Typeface.DEFAULT)) {
+                                loaded = styled
+                            }
+                        } catch (_: Throwable) {}
+                    }
+                    loaded
+                }
+            }
+            if (tf != null) {
+                typefaceCache[cacheKey] = tf
+                return tf
+            }
+        }
+
+        typefaceCache[cacheKey] = defaultForStyle
+        return defaultForStyle
+    }
 
     init {
         try {
@@ -64,6 +286,7 @@ object SpannableHtmlEngine {
         style.borderRadius?.let { obj.put("borderRadius", it) }
         style.borderLeftColor?.let { obj.put("borderLeftColor", it) }
         style.borderLeftWidth?.let { obj.put("borderLeftWidth", it) }
+        style.fontFeatureSettings?.let { obj.put("fontFeatureSettings", it) }
         return obj.toString()
     }
 
@@ -89,7 +312,8 @@ object SpannableHtmlEngine {
     private fun appendInlineNode(
         builder: SpannableStringBuilder,
         nodeObj: JSONObject,
-        onLinkPress: ((url: String) -> Unit)?
+        onLinkPress: ((url: String) -> Unit)?,
+        context: Context? = null
     ) {
         val type = nodeObj.optString("type")
         if (type == "Break") {
@@ -107,7 +331,7 @@ object SpannableHtmlEngine {
         if (children != null) {
             for (c in 0 until children.length()) {
                 val childObj = children.optJSONObject(c) ?: continue
-                appendInlineNode(builder, childObj, onLinkPress)
+                appendInlineNode(builder, childObj, onLinkPress, context)
             }
         }
 
@@ -155,21 +379,19 @@ object SpannableHtmlEngine {
             }
 
             val family = nodeObj.optString("fontFamily")
+            val weight = nodeObj.optString("fontWeight")
+            val style = nodeObj.optString("fontStyle")
+            val isBold = weight == "bold" || weight == "700" || weight == "800" || weight == "900" || weight == "600" || weight == "semibold"
+            val isItalic = style == "italic"
+
             if (family.isNotEmpty()) {
                 builder.setSpan(
-                    TypefaceSpan(family),
+                    CustomTypefaceSpan(family, weight, style, context),
                     start,
                     end,
                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
-            }
-
-            val weight = nodeObj.optString("fontWeight")
-            val isBold = weight == "bold" || weight == "700" || weight == "800" || weight == "900" || weight == "600" || weight == "semibold"
-            val style = nodeObj.optString("fontStyle")
-            val isItalic = style == "italic"
-
-            if (isBold && isItalic) {
+            } else if (isBold && isItalic) {
                 builder.setSpan(
                     StyleSpan(Typeface.BOLD_ITALIC),
                     start,
@@ -186,6 +408,16 @@ object SpannableHtmlEngine {
             } else if (isItalic) {
                 builder.setSpan(
                     StyleSpan(Typeface.ITALIC),
+                    start,
+                    end,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+
+            val ffs = nodeObj.optString("fontFeatureSettings")
+            if (ffs.isNotEmpty()) {
+                builder.setSpan(
+                    FontFeatureSpan(ffs),
                     start,
                     end,
                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -277,14 +509,15 @@ object SpannableHtmlEngine {
 
     fun buildCellSpannable(
         cellObj: JSONObject,
-        onLinkPress: ((url: String) -> Unit)? = null
+        onLinkPress: ((url: String) -> Unit)? = null,
+        context: Context? = null
     ): CharSequence {
         val builder = SpannableStringBuilder()
         val children = cellObj.optJSONArray("children")
         if (children != null) {
             for (c in 0 until children.length()) {
                 val childObj = children.optJSONObject(c) ?: continue
-                appendInlineNode(builder, childObj, onLinkPress)
+                appendInlineNode(builder, childObj, onLinkPress, context)
             }
         }
         return builder
@@ -306,7 +539,7 @@ object SpannableHtmlEngine {
             if (children != null) {
                 for (c in 0 until children.length()) {
                     val childObj = children.optJSONObject(c) ?: continue
-                    appendInlineNode(blockBuilder, childObj, onLinkPress)
+                    appendInlineNode(blockBuilder, childObj, onLinkPress, context)
                 }
             }
 
@@ -326,10 +559,19 @@ object SpannableHtmlEngine {
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                         )
                     }
-                    val family = blockObj.optString("fontFamily")
-                    if (family == "monospace") {
+                    val family = blockObj.optString("fontFamily").ifEmpty { "monospace" }
+                    val weight = blockObj.optString("fontWeight")
+                    val style = blockObj.optString("fontStyle")
+                    blockBuilder.setSpan(
+                        CustomTypefaceSpan(family, weight, style, context),
+                        cStart,
+                        cEnd,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    val ffs = blockObj.optString("fontFeatureSettings")
+                    if (ffs.isNotEmpty()) {
                         blockBuilder.setSpan(
-                            TypefaceSpan("monospace"),
+                            FontFeatureSpan(ffs),
                             cStart,
                             cEnd,
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -340,17 +582,6 @@ object SpannableHtmlEngine {
                         parseColor(colorStr)?.let {
                             blockBuilder.setSpan(
                                 ForegroundColorSpan(it),
-                                cStart,
-                                cEnd,
-                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                            )
-                        }
-                    }
-                    val bgStr = blockObj.optString("backgroundColor")
-                    if (bgStr.isNotEmpty()) {
-                        parseColor(bgStr)?.let {
-                            blockBuilder.setSpan(
-                                BackgroundColorSpan(it),
                                 cStart,
                                 cEnd,
                                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -390,12 +621,23 @@ object SpannableHtmlEngine {
                                 )
                             }
                         }
+                        val family = blockObj.optString("fontFamily")
+                        val weight = blockObj.optString("fontWeight")
+                        val style = blockObj.optString("fontStyle")
+                        if (family.isNotEmpty()) {
+                            blockBuilder.setSpan(
+                                CustomTypefaceSpan(family, weight, style, context),
+                                pStart,
+                                pEnd,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            )
+                        }
 
                         val itemChildren = itemObj.optJSONArray("children")
                         if (itemChildren != null) {
                             for (ic in 0 until itemChildren.length()) {
                                 val itemChildObj = itemChildren.optJSONObject(ic) ?: continue
-                                appendInlineNode(blockBuilder, itemChildObj, onLinkPress)
+                                appendInlineNode(blockBuilder, itemChildObj, onLinkPress, context)
                             }
                         }
                         if (li < items.length() - 1) {
@@ -409,8 +651,11 @@ object SpannableHtmlEngine {
                 val bgStr = blockObj.optString("backgroundColor")
                 if (bgStr.isNotEmpty()) {
                     parseColor(bgStr)?.let {
+                        val br = blockObj.optDouble("borderRadius").let { if (it > 0) (it * density).toFloat() else 0f }
+                        val ml = blockObj.optDouble("marginLeft").let { if (it > 0) (it * density).toFloat() else 0f }
+                        val mr = blockObj.optDouble("marginRight").let { if (it > 0) (it * density).toFloat() else 0f }
                         blockBuilder.setSpan(
-                            BackgroundColorSpan(it),
+                            BlockBackgroundSpan(it, br, ml, mr),
                             0,
                             blockBuilder.length,
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
