@@ -68,9 +68,87 @@ private struct CachedImageViewItem {
   let captionHeight: CGFloat
 }
 
+/// Ultra-high performance lightweight custom view for HTML tables.
+/// Zero nested UILabels or CALayers — draws grid lines & formatted text directly into a single bitmap backing store.
+final class FastHtmlTableGridView: UIView {
+  var rows: [[NSAttributedString]] = []
+  var colWidths: [CGFloat] = []
+  var colOffsets: [CGFloat] = []
+  var rowHeight: CGFloat = 38.0
+  var borderWidth: CGFloat = 1.0
+  var borderColor: UIColor = UIColor(red: 0.80, green: 0.84, blue: 0.88, alpha: 1.0)
+  var tableBackgroundColor: UIColor = .clear
+  var padH: CGFloat = 12.0
+  var padV: CGFloat = 8.0
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    self.backgroundColor = .clear
+    self.isOpaque = false
+    self.clipsToBounds = true
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func draw(_ rect: CGRect) {
+    guard let ctx = UIGraphicsGetCurrentContext(), !rows.isEmpty, !colWidths.isEmpty else { return }
+    let totalW = bounds.width
+    let totalH = bounds.height
+
+    // 0. Fill table background if specified
+    if tableBackgroundColor != .clear {
+      ctx.setFillColor(tableBackgroundColor.cgColor)
+      ctx.fill(bounds)
+    }
+
+    // 1. Draw outer border
+    ctx.setStrokeColor(borderColor.cgColor)
+    ctx.setLineWidth(borderWidth)
+    let halfB = borderWidth / 2.0
+    let outerRect = CGRect(x: halfB, y: halfB, width: max(0, totalW - borderWidth), height: max(0, totalH - borderWidth))
+    ctx.stroke(outerRect)
+
+    // 2. Draw vertical divider lines
+    for c in 1..<colOffsets.count {
+      let x = colOffsets[c]
+      ctx.move(to: CGPoint(x: x, y: 0))
+      ctx.addLine(to: CGPoint(x: x, y: totalH))
+    }
+
+    // 3. Draw horizontal divider lines
+    for r in 1..<rows.count {
+      let y = CGFloat(r) * rowHeight
+      ctx.move(to: CGPoint(x: 0, y: y))
+      ctx.addLine(to: CGPoint(x: totalW, y: y))
+    }
+    ctx.strokePath()
+
+    // 4. Draw cell text
+    for (rIndex, row) in rows.enumerated() {
+      let rowY = CGFloat(rIndex) * rowHeight
+      for (cIndex, cellAttr) in row.enumerated() {
+        guard cIndex < colOffsets.count, cIndex < colWidths.count else { continue }
+        let cellX = colOffsets[cIndex]
+        let cellW = colWidths[cIndex]
+        let textSize = cellAttr.size()
+        let textY = rowY + max(2.0, (rowHeight - textSize.height) / 2.0)
+        let cellTextRect = CGRect(
+          x: cellX + padH,
+          y: textY,
+          width: max(0, cellW - (padH * 2)),
+          height: max(0, rowHeight - (padV * 2))
+        )
+        cellAttr.draw(with: cellTextRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
+      }
+    }
+  }
+}
+
 private struct CachedTableViewItem {
   let scrollView: UIScrollView
-  let gridView: UIView
+  let gridView: FastHtmlTableGridView
   let range: NSRange
   let rows: [[NSAttributedString]]
   let numRows: Int
@@ -80,10 +158,8 @@ private struct CachedTableViewItem {
   let borderColor: UIColor
   let padH: CGFloat
   let padV: CGFloat
-  let cellLabels: [UILabel]
-  let vLines: [CALayer]
-  let hLines: [CALayer]
   let minColWidths: [CGFloat]
+  let naturalTotalWidth: CGFloat
 }
 
 final class FastHtmlTextView: UITextView {
@@ -94,6 +170,9 @@ final class FastHtmlTextView: UITextView {
   private var cachedImages: [CachedImageViewItem] = []
   private var cachedTables: [CachedTableViewItem] = []
   private var activeImageTasks: [URLSessionDataTask] = []
+  private var lastLaidOutWidth: CGFloat = -1
+  private var lastLaidOutAttrLength: Int = -1
+  private var needsForceLayout: Bool = true
   var onRequestRebuild: (() -> Void)?
 
   init() {
@@ -125,9 +204,15 @@ final class FastHtmlTextView: UITextView {
     activeImageTasks.removeAll()
   }
 
+  func setNeedsForceLayout() {
+    needsForceLayout = true
+  }
+
   func rebuildSubviews(for attr: NSAttributedString) {
     // 1. Cancel previous pending network tasks
     cancelPendingDownloads()
+    needsForceLayout = true
+    lastLaidOutWidth = -1
 
     // 2. Remove previous layers and subviews
     cachedBlockBackgrounds.forEach { $0.layer.removeFromSuperlayer() }
@@ -142,7 +227,10 @@ final class FastHtmlTextView: UITextView {
     cachedImages.forEach { $0.containerView.removeFromSuperview() }
     cachedImages.removeAll()
 
-    cachedTables.forEach { $0.scrollView.removeFromSuperview() }
+    cachedTables.forEach {
+      $0.scrollView.removeFromSuperview()
+      $0.gridView.removeFromSuperview()
+    }
     cachedTables.removeAll()
 
     guard attr.length > 0 else { return }
@@ -304,50 +392,26 @@ final class FastHtmlTextView: UITextView {
           }
         }
       }
+      let naturalTotalWidth = minColWidths.reduce(0, +)
+
+      let gridView = FastHtmlTableGridView(frame: .zero)
+      gridView.rows = rows
+      gridView.rowHeight = rowHeight
+      gridView.borderWidth = borderWidth
+      gridView.borderColor = borderColor
+      if let tblBg = dict["backgroundColor"] as? UIColor {
+        gridView.tableBackgroundColor = tblBg
+      }
+      gridView.padH = padH
+      gridView.padV = padV
 
       let scrollView = UIScrollView(frame: .zero)
       scrollView.showsHorizontalScrollIndicator = true
       scrollView.alwaysBounceHorizontal = false
       scrollView.clipsToBounds = true
-
-      let gridView = UIView(frame: .zero)
-      gridView.backgroundColor = .clear
-      gridView.layer.borderColor = borderColor.cgColor
-      gridView.layer.borderWidth = borderWidth
-      gridView.layer.masksToBounds = true
-
-      var vLines: [CALayer] = []
-      for _ in 1..<numCols {
-        let vLine = CALayer()
-        vLine.backgroundColor = borderColor.cgColor
-        gridView.layer.addSublayer(vLine)
-        vLines.append(vLine)
-      }
-
-      var hLines: [CALayer] = []
-      for _ in 1..<numRows {
-        let hLine = CALayer()
-        hLine.backgroundColor = borderColor.cgColor
-        gridView.layer.addSublayer(hLine)
-        hLines.append(hLine)
-      }
-
-      var cellLabels: [UILabel] = []
-      for row in rows {
-        for cellAttr in row {
-          let label = UILabel(frame: .zero)
-          label.attributedText = cellAttr
-          label.numberOfLines = 1
-          label.adjustsFontSizeToFitWidth = false
-          label.lineBreakMode = .byTruncatingTail
-          label.isUserInteractionEnabled = false
-          gridView.addSubview(label)
-          cellLabels.append(label)
-        }
-      }
-
       scrollView.addSubview(gridView)
       self.addSubview(scrollView)
+
       self.cachedTables.append(CachedTableViewItem(
         scrollView: scrollView,
         gridView: gridView,
@@ -360,27 +424,44 @@ final class FastHtmlTextView: UITextView {
         borderColor: borderColor,
         padH: padH,
         padV: padV,
-        cellLabels: cellLabels,
-        vLines: vLines,
-        hLines: hLines,
-        minColWidths: minColWidths
+        minColWidths: minColWidths,
+        naturalTotalWidth: naturalTotalWidth
       ))
     }
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    let currentWidth = bounds.width
+    let textLength = attributedText?.length ?? 0
+    if currentWidth > 0 && currentWidth == lastLaidOutWidth && textLength == lastLaidOutAttrLength && !needsForceLayout {
+      return
+    }
+    if currentWidth > 0 {
+      lastLaidOutWidth = currentWidth
+      lastLaidOutAttrLength = textLength
+      needsForceLayout = false
+    }
     layoutCachedElements()
   }
 
   private func layoutCachedElements() {
     guard let attr = attributedText, attr.length > 0 else { return }
-    self.layoutManager.ensureLayout(for: self.textContainer)
     let availW = max(bounds.width - textContainerInset.left - textContainerInset.right, 200.0)
+
+    if self.textContainer.size.width != availW {
+      self.textContainer.size = CGSize(width: availW, height: .greatestFiniteMagnitude)
+    }
+    self.layoutManager.ensureLayout(for: self.textContainer)
+
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
 
     // Layout Block Backgrounds
     for item in cachedBlockBackgrounds {
+      layoutManager.ensureLayout(forCharacterRange: item.range)
       let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      if glyphRange.location == NSNotFound || glyphRange.length == 0 { continue }
       var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
       if blockRect.width <= 0 || blockRect.height <= 0 { continue }
       blockRect.origin.x += textContainerInset.left
@@ -400,7 +481,9 @@ final class FastHtmlTextView: UITextView {
 
     // Layout Separators
     for item in cachedSeparators {
+      layoutManager.ensureLayout(forCharacterRange: item.range)
       let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      if glyphRange.location == NSNotFound || glyphRange.length == 0 { continue }
       let blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
       if blockRect.width <= 0 || blockRect.height <= 0 { continue }
       let yPos = blockRect.origin.y + textContainerInset.top + (blockRect.height - item.height) / 2.0
@@ -410,8 +493,11 @@ final class FastHtmlTextView: UITextView {
 
     // Layout Borders
     for item in cachedBorders {
+      layoutManager.ensureLayout(forCharacterRange: item.range)
       let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      if glyphRange.location == NSNotFound || glyphRange.length == 0 { continue }
       var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      if blockRect.width <= 0 || blockRect.height <= 0 { continue }
       blockRect.origin.x += textContainerInset.left
       blockRect.origin.y += textContainerInset.top
       let xPos = item.inset + textContainerInset.left
@@ -420,8 +506,11 @@ final class FastHtmlTextView: UITextView {
 
     // Layout Images
     for item in cachedImages {
+      layoutManager.ensureLayout(forCharacterRange: item.range)
       let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      if glyphRange.location == NSNotFound || glyphRange.length == 0 { continue }
       var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      if blockRect.width <= 0 || blockRect.height <= 0 { continue }
       blockRect.origin.x += textContainerInset.left
       blockRect.origin.y += textContainerInset.top
 
@@ -440,15 +529,18 @@ final class FastHtmlTextView: UITextView {
       }
     }
 
-    // Layout Tables (using precomputed minColWidths - ZERO measurement inside layout pass!)
+    // Layout Tables (using FastHtmlTableGridView - ZERO subview bloat & ZERO measurement inside layout pass!)
     for item in cachedTables {
+      layoutManager.ensureLayout(forCharacterRange: item.range)
       let glyphRange = layoutManager.glyphRange(forCharacterRange: item.range, actualCharacterRange: nil)
+      if glyphRange.location == NSNotFound || glyphRange.length == 0 { continue }
       var blockRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+      if blockRect.width <= 0 || blockRect.height <= 0 { continue }
       blockRect.origin.x += textContainerInset.left
       blockRect.origin.y += textContainerInset.top
 
       var colWidths = item.minColWidths
-      let naturalTotalWidth = colWidths.reduce(0, +)
+      let naturalTotalWidth = item.naturalTotalWidth
       if naturalTotalWidth < availW {
         let extra = (availW - naturalTotalWidth) / CGFloat(item.numCols)
         for c in 0..<item.numCols {
@@ -459,15 +551,6 @@ final class FastHtmlTextView: UITextView {
       let finalTotalWidth = colWidths.reduce(0, +)
       let totalTableHeight = CGFloat(item.numRows) * item.rowHeight
 
-      item.scrollView.frame = CGRect(
-        x: textContainerInset.left,
-        y: blockRect.origin.y,
-        width: availW,
-        height: totalTableHeight
-      )
-      item.scrollView.contentSize = CGSize(width: finalTotalWidth, height: totalTableHeight)
-      item.gridView.frame = CGRect(x: 0, y: 0, width: finalTotalWidth, height: totalTableHeight)
-
       var colOffsets = [CGFloat](repeating: 0, count: item.numCols)
       var currentX: CGFloat = 0
       for c in 0..<item.numCols {
@@ -475,37 +558,73 @@ final class FastHtmlTextView: UITextView {
         currentX += colWidths[c]
       }
 
-      for (cIdx, vLine) in item.vLines.enumerated() {
-        let col = cIdx + 1
-        vLine.frame = CGRect(x: colOffsets[col], y: 0, width: item.borderWidth, height: totalTableHeight)
-      }
+      item.gridView.colWidths = colWidths
+      item.gridView.colOffsets = colOffsets
 
-      for (rIdx, hLine) in item.hLines.enumerated() {
-        let row = rIdx + 1
-        let yPos = CGFloat(row) * item.rowHeight
-        hLine.frame = CGRect(x: 0, y: yPos, width: finalTotalWidth, height: item.borderWidth)
-      }
-
-      var labelIdx = 0
-      for (rIndex, row) in item.rows.enumerated() {
-        let rowY = CGFloat(rIndex) * item.rowHeight
-        for (cIndex, _) in row.enumerated() {
-          if labelIdx < item.cellLabels.count {
-            let label = item.cellLabels[labelIdx]
-            let cellX = colOffsets[cIndex]
-            let cellW = colWidths[cIndex]
-            label.frame = CGRect(
-              x: cellX + item.padH,
-              y: rowY + item.padV,
-              width: max(0, cellW - (item.padH * 2)),
-              height: max(0, item.rowHeight - (item.padV * 2))
-            )
-            labelIdx += 1
-          }
-        }
-      }
+      item.scrollView.frame = CGRect(
+        x: textContainerInset.left,
+        y: blockRect.origin.y,
+        width: availW,
+        height: totalTableHeight
+      )
+      item.scrollView.contentSize = CGSize(width: max(availW, finalTotalWidth), height: totalTableHeight)
+      item.gridView.frame = CGRect(x: 0, y: 0, width: max(availW, finalTotalWidth), height: totalTableHeight)
+      item.gridView.setNeedsDisplay()
     }
+
+    CATransaction.commit()
   }
+}
+
+private func areNativeTextStylesEqual(_ lhs: NativeTextStyle?, _ rhs: NativeTextStyle?) -> Bool {
+  if lhs == nil && rhs == nil { return true }
+  guard let lhs = lhs, let rhs = rhs else { return false }
+  return lhs.fontSize == rhs.fontSize &&
+    lhs.color == rhs.color &&
+    lhs.lineHeight == rhs.lineHeight &&
+    lhs.fontFamily == rhs.fontFamily &&
+    lhs.fontWeight == rhs.fontWeight &&
+    lhs.fontStyle == rhs.fontStyle &&
+    lhs.letterSpacing == rhs.letterSpacing &&
+    lhs.textAlign == rhs.textAlign &&
+    lhs.textTransform == rhs.textTransform &&
+    lhs.textIndent == rhs.textIndent &&
+    lhs.textDecorationLine == rhs.textDecorationLine &&
+    lhs.textDecorationColor == rhs.textDecorationColor &&
+    lhs.textDecorationStyle == rhs.textDecorationStyle &&
+    lhs.backgroundColor == rhs.backgroundColor &&
+    lhs.opacity == rhs.opacity &&
+    lhs.margin == rhs.margin &&
+    lhs.marginVertical == rhs.marginVertical &&
+    lhs.marginHorizontal == rhs.marginHorizontal &&
+    lhs.marginTop == rhs.marginTop &&
+    lhs.marginBottom == rhs.marginBottom &&
+    lhs.marginLeft == rhs.marginLeft &&
+    lhs.marginRight == rhs.marginRight &&
+    lhs.padding == rhs.padding &&
+    lhs.paddingVertical == rhs.paddingVertical &&
+    lhs.paddingHorizontal == rhs.paddingHorizontal &&
+    lhs.paddingTop == rhs.paddingTop &&
+    lhs.paddingBottom == rhs.paddingBottom &&
+    lhs.paddingLeft == rhs.paddingLeft &&
+    lhs.paddingRight == rhs.paddingRight &&
+    lhs.borderWidth == rhs.borderWidth &&
+    lhs.borderColor == rhs.borderColor &&
+    lhs.borderRadius == rhs.borderRadius &&
+    lhs.borderLeftColor == rhs.borderLeftColor &&
+    lhs.borderLeftWidth == rhs.borderLeftWidth &&
+    lhs.fontFeatureSettings == rhs.fontFeatureSettings
+}
+
+private func areTagsStylesEqual(_ lhs: [String: NativeTextStyle]?, _ rhs: [String: NativeTextStyle]?) -> Bool {
+  if lhs == nil && rhs == nil { return true }
+  guard let lhs = lhs, let rhs = rhs else { return false }
+  if lhs.count != rhs.count { return false }
+  for (key, val) in lhs {
+    guard let rhsVal = rhs[key] else { return false }
+    if !areNativeTextStylesEqual(val, rhsVal) { return false }
+  }
+  return true
 }
 
 /// Native HTML view backed by iOS system HTML engine, implementing the Nitrogen-generated HybridView spec.
@@ -531,11 +650,19 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
   }
 
   public var baseStyle: NativeTextStyle? {
-    didSet { setNeedsContentUpdate() }
+    didSet {
+      if !areNativeTextStylesEqual(oldValue, baseStyle) {
+        setNeedsContentUpdate()
+      }
+    }
   }
 
   public var tagsStyles: Dictionary<String, NativeTextStyle>? {
-    didSet { setNeedsContentUpdate() }
+    didSet {
+      if !areTagsStylesEqual(oldValue, tagsStyles) {
+        setNeedsContentUpdate()
+      }
+    }
   }
 
   public var selectable: Bool? {
@@ -548,6 +675,7 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
 
   public var onLinkPress: ((_ url: String) -> Void)?
   public var onContentSizeChange: ((_ height: Double) -> Void)?
+  private var lastReportedHeight: Double = -1
 
   // MARK: - Init
 
@@ -600,6 +728,7 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
       (textView as? FastHtmlTextView)?.cancelPendingDownloads()
       textView.attributedText = NSAttributedString(string: "")
       (textView as? FastHtmlTextView)?.rebuildSubviews(for: NSAttributedString(string: ""))
+      lastReportedHeight = 0
       onContentSizeChange?(0)
       return
     }
@@ -619,7 +748,11 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
     updateAccessibility(for: attr)
 
     let size = textView.sizeThatFits(CGSize(width: targetWidth, height: .greatestFiniteMagnitude))
-    onContentSizeChange?(Double(max(16, ceil(size.height))))
+    let newHeight = Double(max(16, ceil(size.height)))
+    if abs(lastReportedHeight - newHeight) > 1.0 {
+      lastReportedHeight = newHeight
+      onContentSizeChange?(newHeight)
+    }
   }
 
   // MARK: - Web-Standard Accessibility Tree (VoiceOver)

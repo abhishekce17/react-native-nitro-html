@@ -684,7 +684,6 @@ static void applyBlockOverrides(
 
     if (overrideStyle->fontSize.has_value() && overrideStyle->fontSize.value() > 0) ctx.fontSize = overrideStyle->fontSize.value();
     if (overrideStyle->color.has_value() && !overrideStyle->color.value().empty()) ctx.color = overrideStyle->color.value();
-    if (overrideStyle->backgroundColor.has_value() && !overrideStyle->backgroundColor.value().empty()) ctx.backgroundColor = overrideStyle->backgroundColor.value();
     if (overrideStyle->fontFamily.has_value() && !overrideStyle->fontFamily.value().empty()) ctx.fontFamily = overrideStyle->fontFamily.value();
     if (overrideStyle->fontWeight.has_value() && !overrideStyle->fontWeight.value().empty()) ctx.fontWeight = overrideStyle->fontWeight.value();
     if (overrideStyle->fontStyle.has_value() && !overrideStyle->fontStyle.value().empty()) ctx.fontStyle = overrideStyle->fontStyle.value();
@@ -1257,6 +1256,7 @@ static void walkDomNode(
         tableCtx.fontSize = block->fontSize_;
         tableCtx.color = block->color_;
         tableCtx.fontFamily = block->fontFamily_;
+        tableCtx.backgroundColor = "";
         applyNodeStyling(block.get(), elem, "table", tagsStyles, tableCtx);
 
         auto processRow = [&](lxb_dom_node_t* tr) {
@@ -1703,7 +1703,6 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
                 const auto& b = baseStyle.value();
                 if (b.fontSize.has_value() && b.fontSize.value() > 0) baseCtx.fontSize = b.fontSize.value();
                 if (b.color.has_value() && !b.color.value().empty()) baseCtx.color = b.color.value();
-                if (b.backgroundColor.has_value() && !b.backgroundColor.value().empty()) baseCtx.backgroundColor = b.backgroundColor.value();
                 if (b.fontFamily.has_value() && !b.fontFamily.value().empty()) baseCtx.fontFamily = b.fontFamily.value();
                 if (b.fontWeight.has_value() && !b.fontWeight.value().empty()) baseCtx.fontWeight = b.fontWeight.value();
                 if (b.fontStyle.has_value() && !b.fontStyle.value().empty()) baseCtx.fontStyle = b.fontStyle.value();

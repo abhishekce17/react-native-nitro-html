@@ -669,8 +669,8 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                     [rowsArr addObject:cellsArr];
                 }
                 if (rowsArr.count > 0) {
-                    UIColor *tblBorderColor = !block->borderLeftColor_.empty() ? colorFromHexString(block->borderLeftColor_) : [UIColor colorWithRed:0.12 green:0.23 blue:0.54 alpha:1.0];
-                    CGFloat tblBorderWidth = block->borderLeftWidth_ > 0 ? static_cast<CGFloat>(block->borderLeftWidth_) : 1.5;
+                    UIColor *tblBorderColor = !block->borderLeftColor_.empty() ? colorFromHexString(block->borderLeftColor_) : [UIColor colorWithRed:0.80 green:0.84 blue:0.88 alpha:1.0];
+                    CGFloat tblBorderWidth = block->borderLeftWidth_ > 0 ? static_cast<CGFloat>(block->borderLeftWidth_) : 1.0;
                     CGFloat rowLineHeight = 38.0;
 
                     NSMutableParagraphStyle *innerRowPara = [[NSMutableParagraphStyle alloc] init];
@@ -713,13 +713,19 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                         }
                     }
 
+                    NSMutableDictionary *tblDict = [NSMutableDictionary dictionaryWithDictionary:@{
+                        @"rows": rowsArr,
+                        @"borderColor": tblBorderColor,
+                        @"borderWidth": @(tblBorderWidth),
+                        @"rowHeight": @(rowLineHeight)
+                    }];
+                    if (!block->backgroundColor_.empty()) {
+                        UIColor *tblBg = colorFromHexString(block->backgroundColor_);
+                        if (tblBg) tblDict[@"backgroundColor"] = tblBg;
+                    }
+
                     [tblBlockAttr addAttribute:@"FastHtmlTableData"
-                                         value:@{
-                                             @"rows": rowsArr,
-                                             @"borderColor": tblBorderColor,
-                                             @"borderWidth": @(tblBorderWidth),
-                                             @"rowHeight": @(rowLineHeight)
-                                         }
+                                         value:tblDict
                                          range:NSMakeRange(0, tblBlockAttr.length)];
 
                     [fullText appendAttributedString:tblBlockAttr];

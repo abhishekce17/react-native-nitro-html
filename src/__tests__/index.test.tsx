@@ -779,4 +779,88 @@ describe('5. Combination & Mega Stress Test', () => {
     expect(element).toBeDefined();
     expect(element.type).toBe(FastHtmlView);
   });
+
+  it('stress tests parsing and wrapper extraction for 10K+ words content (~10,000 words, 240 sections, ~45 min read)', async () => {
+    // Generate 10,000+ words of reading content (~240 sections)
+    const sectionsCount = 240;
+    const stress10KHtml = Array.from({ length: sectionsCount }, (_, i) => {
+      const idx = i + 1;
+      const headingLevel = (i % 3) + 2;
+      let extra = '';
+
+      if (i % 3 === 0) {
+        extra += `
+<table>
+  <tr><th>Metric</th><th>Target</th><th>Measured</th><th>Status</th></tr>
+  <tr><td>DOM Node Count #${idx}</td><td>0 Virtual DOM</td><td>0 Nodes</td><td>Verified</td></tr>
+  <tr><td>JSI Latency #${idx}</td><td>&lt; 0.50 ms</td><td>0.08 ms</td><td>Optimal</td></tr>
+  <tr><td>Framerate #${idx}</td><td>120 FPS</td><td>120 FPS</td><td>Buttery</td></tr>
+</table>`;
+      }
+      if (i % 4 === 0) {
+        extra += `<pre><code class="typescript">const benchmark_${idx} = FastHtmlParser.parse(largePayload);</code></pre>`;
+      }
+      if (i % 5 === 0) {
+        extra += `<blockquote><p>Milestone #${idx}: "Direct C++ Lexbor AST normalization eliminates JS serialization bottlenecks."</p></blockquote>`;
+      }
+      if (i % 6 === 0) {
+        extra += `<ul><li>Rule #${idx}.A: Zero VDOM allocation</li><li>Rule #${idx}.B: Native continuous text selection</li></ul>`;
+      }
+
+      return `
+<h${headingLevel}>Section ${idx}: High-Throughput DOM Virtualization &amp; Native Typography</h${headingLevel}>
+<p>This is paragraph ${idx} of the high-throughput 10,000 words stress test suite. The <b>FastHtmlView</b> utilizes native text fragment layout with <b>0 React Virtual DOM nodes</b>. Long-form articles with deep hierarchies maintain steady <code>120 FPS</code> smooth scrolling with continuous text selection across headings, lists, tables, and phrasing elements.</p>
+${extra}
+`;
+    }).join('');
+
+    // Estimate word count:
+    const wordCount = stress10KHtml.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).length;
+    expect(wordCount).toBeGreaterThanOrEqual(10000);
+
+    // Synchronous parsing pass
+    const t0 = performance.now();
+    const articleSync = parseHTML(stress10KHtml);
+    const syncParseTimeMs = performance.now() - t0;
+    expect(syncParseTimeMs).toBeGreaterThanOrEqual(0);
+
+    expect(articleSync).not.toBeNull();
+    expect(articleSync!.length).toBeGreaterThanOrEqual(sectionsCount);
+
+    // Extract all blocks and children through AST wrappers
+    const blocks = getBlocks(articleSync);
+    expect(blocks.length).toBe(articleSync!.length);
+
+    let totalInlineChildren = 0;
+    blocks.forEach((b) => {
+      totalInlineChildren += getChildren(b).length;
+      if (b.type === 'Table') {
+        const rows = getRows(b);
+        expect(rows.length).toBeGreaterThanOrEqual(1);
+      }
+    });
+    expect(totalInlineChildren).toBeGreaterThan(0);
+
+    // Asynchronous parsing pass (C++ worker thread)
+    const tAsync0 = performance.now();
+    const articleAsync = await parseHTMLAsync(stress10KHtml);
+    const asyncParseTimeMs = performance.now() - tAsync0;
+    expect(asyncParseTimeMs).toBeGreaterThanOrEqual(0);
+
+    expect(articleAsync).not.toBeNull();
+    expect(articleAsync!.length).toBe(articleSync!.length);
+
+    // FastHtmlView component initialization with 10K-word payload
+    const element = React.createElement(FastHtmlView, {
+      html: stress10KHtml,
+      baseStyle: { fontSize: 16, color: '#0f172a' },
+      tagsStyles: {
+        h2: { color: '#0284c7' },
+        blockquote: { borderLeftWidth: 4, borderLeftColor: '#8b5cf6' },
+      },
+      selectable: true,
+    });
+    expect(element).toBeDefined();
+    expect(element.props.html).toBe(stress10KHtml);
+  });
 });

@@ -79,9 +79,12 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
     [html, windowWidth, baseFontSize, baseLineHeight, fontScale]
   );
   const height = measuredHeight > 0 ? measuredHeight : initialHeight;
+  const handleContentSizeChange = React.useCallback((newH: number) => {
+    setMeasuredHeight((prev) => (Math.abs(prev - newH) > 1 ? newH : prev));
+  }, []);
   const wrappedOnContentSizeChange = React.useMemo(
-    () => callback(setMeasuredHeight),
-    [setMeasuredHeight]
+    () => callback(handleContentSizeChange),
+    [handleContentSizeChange]
   );
   const wrappedOnLinkPress = React.useMemo(
     () => (onLinkPress ? callback(onLinkPress) : undefined),
@@ -168,9 +171,13 @@ export function FastHtmlView({
 
   const height = measuredHeight > 0 ? measuredHeight : initialHeight;
 
+  const handleContentSizeChange = React.useCallback((newH: number) => {
+    setMeasuredHeight((prev) => (Math.abs(prev - newH) > 1 ? newH : prev));
+  }, []);
+
   const wrappedOnContentSizeChange = React.useMemo(
-    () => callback(setMeasuredHeight),
-    [setMeasuredHeight]
+    () => callback(handleContentSizeChange),
+    [handleContentSizeChange]
   );
 
   // ── Fast Path (100% Native Fabric Layer with Synchronous C++ JSI Height) ───
