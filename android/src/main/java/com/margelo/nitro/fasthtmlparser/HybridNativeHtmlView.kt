@@ -24,22 +24,8 @@ class HybridNativeHtmlView(
         ?: throw IllegalStateException("NitroModules.applicationContext is null")
 ) : HybridNativeHtmlViewSpec() {
 
-    private val measureAndLayoutRunnable = Runnable {
-        if (containerLayout.width > 0 && containerLayout.height > 0) {
-            val widthSpec = View.MeasureSpec.makeMeasureSpec(containerLayout.width, View.MeasureSpec.EXACTLY)
-            val heightSpec = View.MeasureSpec.makeMeasureSpec(containerLayout.height, View.MeasureSpec.EXACTLY)
-            containerLayout.measure(widthSpec, heightSpec)
-            containerLayout.layout(containerLayout.left, containerLayout.top, containerLayout.right, containerLayout.bottom)
-        }
-    }
-
     private val containerLayout: LinearLayout by lazy {
-        object : LinearLayout(context) {
-            override fun requestLayout() {
-                super.requestLayout()
-                post(measureAndLayoutRunnable)
-            }
-        }.apply {
+        LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -172,8 +158,8 @@ class HybridNativeHtmlView(
                         setTextIsSelectable(selectable ?: true)
                         movementMethod = LinkMovementMethod.getInstance()
                         setBackgroundColor(Color.TRANSPARENT)
-                        val ffs = baseStyle?.fontFeatureSettings
-                        if (!ffs.isNullOrEmpty() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                        val ffs = SpannableHtmlEngine.normalizeFontFeatureSettings(baseStyle?.fontFeatureSettings)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                             fontFeatureSettings = ffs
                         }
                         val baseFamily = baseStyle?.fontFamily
@@ -257,8 +243,8 @@ class HybridNativeHtmlView(
                                 setPadding(padH, padV, padH, padV)
                                 setTextIsSelectable(selectable ?: true)
                                 movementMethod = LinkMovementMethod.getInstance()
-                                val ffs = baseStyle?.fontFeatureSettings
-                                if (!ffs.isNullOrEmpty() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                val ffs = SpannableHtmlEngine.normalizeFontFeatureSettings(baseStyle?.fontFeatureSettings)
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                                     fontFeatureSettings = ffs
                                 }
                                 val cellFamily = baseStyle?.fontFamily
@@ -413,7 +399,7 @@ class HybridNativeHtmlView(
 
                         val captionTv = TextView(context).apply {
                             text = caption
-                            setTypeface(typeface, android.graphics.Typeface.ITALIC)
+                            typeface = SpannableHtmlEngine.resolveTypeface(context, baseStyle?.fontFamily, baseStyle?.fontWeight, "italic")
                             setTextColor(captionColorInt)
                             if (captionFontSize > 0f) textSize = captionFontSize
                             setPadding(0, captionPadTop, 0, 0)

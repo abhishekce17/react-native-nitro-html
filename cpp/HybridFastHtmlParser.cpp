@@ -111,25 +111,24 @@ static std::string normalizeHtmlWhitespace(const std::string& input) {
     return result;
 }
 
-static std::string applyTextTransform(const std::string& input, const std::string& transform) {
+static std::string applyTextTransform(std::string input, const std::string& transform) {
     if (transform.empty() || input.empty()) return input;
-    std::string result = input;
     if (transform == "uppercase") {
-        std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+        std::transform(input.begin(), input.end(), input.begin(), ::toupper);
     } else if (transform == "lowercase") {
-        std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+        std::transform(input.begin(), input.end(), input.begin(), ::tolower);
     } else if (transform == "capitalize") {
         bool capNext = true;
-        for (size_t i = 0; i < result.size(); ++i) {
-            if (isspace(result[i])) {
+        for (size_t i = 0; i < input.size(); ++i) {
+            if (isspace(static_cast<unsigned char>(input[i]))) {
                 capNext = true;
-            } else if (capNext && isalpha(result[i])) {
-                result[i] = toupper(result[i]);
+            } else if (capNext && isalpha(static_cast<unsigned char>(input[i]))) {
+                input[i] = static_cast<char>(toupper(static_cast<unsigned char>(input[i])));
                 capNext = false;
             }
         }
     }
-    return result;
+    return input;
 }
 
 static inline std::string_view trimSpacesOnly(std::string_view str) {
@@ -731,8 +730,10 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
         std::string str = getNodeText(node);
         if (str.empty()) return nullptr;
         str = normalizeHtmlWhitespace(str);
-        str = applyTextTransform(str, parentCtx.textTransform);
-        auto textNode = std::make_shared<HybridInlineNode>("Text", str, "");
+        if (!parentCtx.textTransform.empty()) {
+            str = applyTextTransform(std::move(str), parentCtx.textTransform);
+        }
+        auto textNode = std::make_shared<HybridInlineNode>("Text", std::move(str), "");
         textNode->fontSize_ = parentCtx.fontSize;
         textNode->color_ = parentCtx.color;
         textNode->backgroundColor_ = parentCtx.backgroundColor;
@@ -1576,14 +1577,6 @@ struct AstCacheKey {
     }
 };
 
-struct AstCacheKeyHash {
-    std::size_t operator()(const AstCacheKey& k) const {
-        std::size_t h1 = std::hash<std::string>{}(k.html);
-        std::size_t h2 = std::hash<std::string>{}(k.styleSignature);
-        return h1 ^ (h2 << 1);
-    }
-};
-
 static std::string computeStyleSignature(
     const std::optional<NativeTextStyle>& baseStyle,
     const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
@@ -1618,7 +1611,6 @@ static std::string computeStyleSignature(
 
 static std::mutex sAstCacheMutex;
 static std::list<std::pair<AstCacheKey, std::shared_ptr<HybridParsedArticle>>> sAstLruList;
-static std::unordered_map<AstCacheKey, decltype(sAstLruList)::iterator, AstCacheKeyHash> sAstLruMap;
 constexpr size_t MAX_AST_CACHE_SIZE = 16;
 
 // ── parseInternal ─────────────────────────────────────────────────────────────
@@ -1631,15 +1623,16 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
         return std::make_shared<HybridParsedArticle>();
     }
 
-    AstCacheKey cacheKey { html, computeStyleSignature(baseStyle, tagsStyles) };
+    std::string styleSig = computeStyleSignature(baseStyle, tagsStyles);
 
     {
         std::lock_guard<std::mutex> lock(sAstCacheMutex);
-        auto it = sAstLruMap.find(cacheKey);
-        if (it != sAstLruMap.end()) {
-            // Move accessed item to the front of LRU list (0ms cache hit)
-            sAstLruList.splice(sAstLruList.begin(), sAstLruList, it->second);
-            return it->second->second;
+        for (auto it = sAstLruList.begin(); it != sAstLruList.end(); ++it) {
+            if (it->first.styleSignature == styleSig && it->first.html == html) {
+                // Move accessed item to the front of LRU list (0ms cache hit, 0 allocations)
+                sAstLruList.splice(sAstLruList.begin(), sAstLruList, it);
+                return it->second;
+            }
         }
     }
 
@@ -1695,17 +1688,8 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
 
     {
         std::lock_guard<std::mutex> lock(sAstCacheMutex);
-        auto it = sAstLruMap.find(cacheKey);
-        if (it != sAstLruMap.end()) {
-            sAstLruList.splice(sAstLruList.begin(), sAstLruList, it->second);
-            return it->second->second;
-        }
-
-        sAstLruList.emplace_front(cacheKey, article);
-        sAstLruMap[cacheKey] = sAstLruList.begin();
-
+        sAstLruList.emplace_front(AstCacheKey{ html, std::move(styleSig) }, article);
         if (sAstLruList.size() > MAX_AST_CACHE_SIZE) {
-            sAstLruMap.erase(sAstLruList.back().first);
             sAstLruList.pop_back();
         }
     }
@@ -1856,35 +1840,78 @@ std::string HybridFastHtmlParser::articleToJson(const std::shared_ptr<HybridPars
     return out;
 }
 
-static std::string extractJsonString(const std::string& json, const std::string& key) {
-    std::string needle = "\"" + key + "\":\"";
+static std::string extractJsonString(std::string_view json, std::string_view key) {
+    std::string needle;
+    needle.reserve(key.size() + 2);
+    needle.push_back('"');
+    needle.append(key.data(), key.size());
+    needle.push_back('"');
     size_t pos = json.find(needle);
-    if (pos == std::string::npos) {
-        needle = "\"" + key + "\": \"";
-        pos = json.find(needle);
+    if (pos == std::string_view::npos) return "";
+    size_t colon = json.find(':', pos + needle.size());
+    if (colon == std::string_view::npos) return "";
+    size_t startQuote = json.find('"', colon + 1);
+    if (startQuote == std::string_view::npos) return "";
+
+    size_t endQuote = std::string_view::npos;
+    for (size_t i = startQuote + 1; i < json.size(); ++i) {
+        if (json[i] == '\\') {
+            i++;
+            continue;
+        }
+        if (json[i] == '"') {
+            endQuote = i;
+            break;
+        }
     }
-    if (pos == std::string::npos) return "";
-    size_t start = pos + needle.length();
-    size_t end = json.find('"', start);
-    if (end == std::string::npos) return "";
-    return json.substr(start, end - start);
+    if (endQuote == std::string_view::npos) return "";
+
+    std::string result;
+    result.reserve(endQuote - startQuote - 1);
+    for (size_t i = startQuote + 1; i < endQuote; ++i) {
+        if (json[i] == '\\' && i + 1 < endQuote) {
+            char next = json[i + 1];
+            if (next == '"' || next == '\\' || next == '/') {
+                result.push_back(next);
+                i++;
+                continue;
+            } else if (next == 'n') {
+                result.push_back('\n');
+                i++;
+                continue;
+            } else if (next == 'r') {
+                result.push_back('\r');
+                i++;
+                continue;
+            } else if (next == 't') {
+                result.push_back('\t');
+                i++;
+                continue;
+            }
+        }
+        result.push_back(json[i]);
+    }
+    return result;
 }
 
-static double extractJsonDouble(const std::string& json, const std::string& key, double defaultVal = 0.0) {
-    std::string needle = "\"" + key + "\":";
+static double extractJsonDouble(std::string_view json, std::string_view key, double defaultVal = 0.0) {
+    std::string needle;
+    needle.reserve(key.size() + 2);
+    needle.push_back('"');
+    needle.append(key.data(), key.size());
+    needle.push_back('"');
     size_t pos = json.find(needle);
-    if (pos == std::string::npos) {
-        needle = "\"" + key + "\": ";
-        pos = json.find(needle);
-    }
-    if (pos == std::string::npos) return defaultVal;
-    size_t start = pos + needle.length();
-    while (start < json.length() && (json[start] == ' ' || json[start] == '\t')) start++;
-    try {
-        return std::stod(json.substr(start));
-    } catch (...) {
-        return defaultVal;
-    }
+    if (pos == std::string_view::npos) return defaultVal;
+    size_t colon = json.find(':', pos + needle.size());
+    if (colon == std::string_view::npos) return defaultVal;
+    size_t start = colon + 1;
+    while (start < json.size() && (json[start] == ' ' || json[start] == '\t')) start++;
+    if (start >= json.size()) return defaultVal;
+    char* endPtr = nullptr;
+    const char* startC = json.data() + start;
+    double val = std::strtod(startC, &endPtr);
+    if (endPtr == startC) return defaultVal;
+    return val;
 }
 
 static NativeTextStyle parseStyleObject(const std::string& json) {

@@ -34,6 +34,9 @@ export const NativeHtmlView = getHostComponent<
 // ─── Custom Renderer Detection ───────────────────────────────────────────────
 // Zero-allocation O(1) check that avoids Object.keys() heap allocations.
 
+const EMPTY_STYLE: NativeTextStyle = Object.freeze({});
+const EMPTY_TAGS_STYLES: Record<string, NativeTextStyle> = Object.freeze({});
+
 function hasCustomRenderers(renderers?: Record<string, unknown>): boolean {
   if (!renderers) return false;
   for (const key in renderers) {
@@ -64,22 +67,32 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentView({
   fontScale: number;
 }) {
   const [measuredHeight, setMeasuredHeight] = useState(0);
-  const initialHeight = calculateHTMLHeight(
-    html,
-    windowWidth,
-    baseFontSize,
-    baseLineHeight,
-    fontScale
+  const initialHeight = React.useMemo(
+    () =>
+      calculateHTMLHeight(
+        html,
+        windowWidth,
+        baseFontSize,
+        baseLineHeight,
+        fontScale
+      ),
+    [html, windowWidth, baseFontSize, baseLineHeight, fontScale]
   );
   const height = measuredHeight > 0 ? measuredHeight : initialHeight;
-  const wrappedOnContentSizeChange = callback(setMeasuredHeight);
-  const wrappedOnLinkPress = onLinkPress ? callback(onLinkPress) : undefined;
+  const wrappedOnContentSizeChange = React.useMemo(
+    () => callback(setMeasuredHeight),
+    [setMeasuredHeight]
+  );
+  const wrappedOnLinkPress = React.useMemo(
+    () => (onLinkPress ? callback(onLinkPress) : undefined),
+    [onLinkPress]
+  );
 
   return (
     <NativeHtmlView
       html={html}
-      baseStyle={baseStyle ?? {}}
-      tagsStyles={tagsStyles ?? {}}
+      baseStyle={baseStyle ?? EMPTY_STYLE}
+      tagsStyles={tagsStyles ?? EMPTY_TAGS_STYLES}
       selectable={selectable}
       onLinkPress={wrappedOnLinkPress}
       onContentSizeChange={wrappedOnContentSizeChange}
@@ -121,27 +134,44 @@ export function FastHtmlView({
   const baseFontSize = (baseStyle?.fontSize as number) ?? 0;
   const baseLineHeight = (baseStyle?.lineHeight as number) ?? 0;
 
-  const nativeBaseStyle: NativeTextStyle = fontFeatureSettings
-    ? { ...((baseStyle as NativeTextStyle) ?? {}), fontFeatureSettings }
-    : ((baseStyle as NativeTextStyle) ?? {});
-  const nativeTagsStyles: Record<string, NativeTextStyle> =
-    (tagsStyles as Record<string, NativeTextStyle>) ?? {};
-  const wrappedOnLinkPress = onLinkPress ? callback(onLinkPress) : undefined;
+  const nativeBaseStyle: NativeTextStyle = React.useMemo(() => {
+    if (fontFeatureSettings) {
+      return { ...((baseStyle as NativeTextStyle) ?? {}), fontFeatureSettings };
+    }
+    return (baseStyle as NativeTextStyle) ?? EMPTY_STYLE;
+  }, [baseStyle, fontFeatureSettings]);
+
+  const nativeTagsStyles: Record<string, NativeTextStyle> = React.useMemo(() => {
+    return (tagsStyles as Record<string, NativeTextStyle>) ?? EMPTY_TAGS_STYLES;
+  }, [tagsStyles]);
+
+  const wrappedOnLinkPress = React.useMemo(
+    () => (onLinkPress ? callback(onLinkPress) : undefined),
+    [onLinkPress]
+  );
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
-  const height =
-    measuredHeight > 0
-      ? measuredHeight
-      : (html
-          ? calculateHTMLHeight(
-              html,
-              windowWidth,
-              baseFontSize,
-              baseLineHeight,
-              fontScale
-            )
-          : 0);
-  const wrappedOnContentSizeChange = callback(setMeasuredHeight);
+
+  const initialHeight = React.useMemo(
+    () =>
+      html
+        ? calculateHTMLHeight(
+            html,
+            windowWidth,
+            baseFontSize,
+            baseLineHeight,
+            fontScale
+          )
+        : 0,
+    [html, windowWidth, baseFontSize, baseLineHeight, fontScale]
+  );
+
+  const height = measuredHeight > 0 ? measuredHeight : initialHeight;
+
+  const wrappedOnContentSizeChange = React.useMemo(
+    () => callback(setMeasuredHeight),
+    [setMeasuredHeight]
+  );
 
   // ── Fast Path (100% Native Fabric Layer with Synchronous C++ JSI Height) ───
   if (!hasCustomRenderers(renderers)) {
