@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, useWindowDimensions, PixelRatio } from 'react-native';
 import { getHostComponent, callback } from 'react-native-nitro-modules';
 import { parseHTML, calculateHTMLHeight } from '../parser';
@@ -48,9 +48,9 @@ function hasCustomRenderers(renderers?: Record<string, unknown>): boolean {
 // Architecture:
 //
 //  ┌─ Fast Path (default, no renderers prop) ──────────────────────────────┐
-//  │  1. JSI synchronous C++ calculateHTMLHeight() (0.05 ms, zero state)   │
-//  │  2. Direct style.height passed into Fabric Yoga                       │
-//  │  100% Native Fabric Layer. Zero re-renders. Zero bridge latency.      │
+//  │  1. JSI synchronous C++ calculateHTMLHeight() for Frame 0 layout.    │
+//  │  2. Dynamic onContentSizeChange syncs 100% exact native measurement.  │
+//  │  100% Native Fabric Layer. Zero layout shift. Zero clipping.          │
 //  └───────────────────────────────────────────────────────────────────────┘
 //
 //  ┌─ Custom Renderer Path (when renderers prop is provided) ──────────────┐
@@ -84,18 +84,23 @@ export function FastHtmlView({
     Record<string, NativeTextStyle> | undefined;
   const wrappedOnLinkPress = onLinkPress ? callback(onLinkPress) : undefined;
 
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const height =
+    measuredHeight > 0
+      ? measuredHeight
+      : (html
+          ? calculateHTMLHeight(
+              html,
+              windowWidth,
+              baseFontSize,
+              baseLineHeight,
+              fontScale
+            )
+          : 0);
+  const wrappedOnContentSizeChange = callback(setMeasuredHeight);
+
   // ── Fast Path (100% Native Fabric Layer with Synchronous C++ JSI Height) ───
   if (!hasCustomRenderers(renderers)) {
-    const height = html
-      ? calculateHTMLHeight(
-          html,
-          windowWidth,
-          baseFontSize,
-          baseLineHeight,
-          fontScale
-        )
-      : 0;
-
     return (
       <NativeHtmlView
         html={html || ''}
@@ -104,6 +109,7 @@ export function FastHtmlView({
         selectable={selectable}
         themeMode={themeMode}
         onLinkPress={wrappedOnLinkPress}
+        onContentSizeChange={wrappedOnContentSizeChange}
         style={[styles.container, height > 0 ? { height } : undefined, style]}
       />
     );

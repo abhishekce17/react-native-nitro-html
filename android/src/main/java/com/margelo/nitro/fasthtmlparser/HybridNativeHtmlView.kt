@@ -320,15 +320,7 @@ class HybridNativeHtmlView(
                                     imageView.post {
                                         imageView.setImageBitmap(finalBmp)
                                         imageView.invalidateOutline()
-                                        imageView.requestLayout()
-                                        containerLayout.requestLayout()
-                                        containerLayout.post {
-                                            val hPx = containerLayout.measuredHeight
-                                            if (hPx > 0 && density > 0) {
-                                                val hDp = hPx.toDouble() / density.toDouble()
-                                                onContentSizeChange?.invoke(hDp)
-                                            }
-                                        }
+                                        reportContentHeight()
                                     }
                                 }
                             } catch (_: Exception) {
@@ -387,13 +379,22 @@ class HybridNativeHtmlView(
 
         flushTextBlocks()
 
-        // Measure layout height and report back to React Native Yoga
+        // Measure unconstrained layout height and report back to React Native Yoga
         containerLayout.post {
-            val hPx = containerLayout.measuredHeight
-            if (hPx > 0 && density > 0) {
-                val hDp = hPx.toDouble() / density.toDouble()
-                onContentSizeChange?.invoke(hDp)
-            }
+            reportContentHeight()
+        }
+    }
+
+    private fun reportContentHeight() {
+        val density = context.resources.displayMetrics.density
+        val w = if (containerLayout.width > 0) containerLayout.width else context.resources.displayMetrics.widthPixels
+        val widthSpec = android.view.View.MeasureSpec.makeMeasureSpec(w, android.view.View.MeasureSpec.EXACTLY)
+        val heightSpec = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        containerLayout.measure(widthSpec, heightSpec)
+        val hPx = containerLayout.measuredHeight
+        if (hPx > 0 && density > 0) {
+            val hDp = hPx.toDouble() / density.toDouble()
+            onContentSizeChange?.invoke(hDp)
         }
     }
 
