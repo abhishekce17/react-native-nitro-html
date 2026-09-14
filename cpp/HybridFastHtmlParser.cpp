@@ -30,6 +30,13 @@ static lxb_status_t lexborSerializeCb(const lxb_char_t *data, size_t len, void *
 static std::string serializeNodeHtml(lxb_dom_node_t* node) {
     if (!node) return "";
     std::string html;
+    lxb_html_serialize_tree_cb(node, lexborSerializeCb, &html);
+    return html;
+}
+
+static std::string serializeNodeChildrenHtml(lxb_dom_node_t* node) {
+    if (!node) return "";
+    std::string html;
     lxb_html_serialize_deep_cb(node, lexborSerializeCb, &html);
     return html;
 }
@@ -1239,9 +1246,9 @@ static void walkDomNode(
         block->color_ = "#334155";
         block->backgroundColor_ = "#FAF5FF";
         block->fontFamily_ = baseCtx.fontFamily;
-        block->marginLeft_ = 20.0;
-        block->marginRight_ = 20.0;
-        block->paddingLeft_ = 16.0;
+        block->marginLeft_ = 0.0;
+        block->marginRight_ = 0.0;
+        block->paddingLeft_ = 12.0;
         block->marginBottom_ = 12.0;
         block->borderLeftWidth_ = 4.0;
         block->borderLeftColor_ = "#94A3B8";
@@ -1343,7 +1350,7 @@ static void walkDomNode(
         block->fontSize_ = baseCtx.fontSize;
         block->color_ = baseCtx.color;
         block->fontFamily_ = baseCtx.fontFamily;
-        block->paddingLeft_ = 20.0;
+        block->paddingLeft_ = 0.0;
         block->marginBottom_ = 12.0;
         block->html_ = serializeNodeHtml(node);
 
@@ -2384,7 +2391,7 @@ std::string HybridFastHtmlParser::normalizeHtml(const std::string& html) {
         }
 
         if (targetNode) {
-            result = serializeNodeHtml(targetNode);
+            result = serializeNodeChildrenHtml(targetNode);
         }
         lxb_html_document_destroy(document);
     }

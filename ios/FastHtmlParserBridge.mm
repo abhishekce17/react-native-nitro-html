@@ -559,10 +559,13 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
         }
 
         if (block->type_ == "List") {
+            CGFloat listLeftMargin = static_cast<CGFloat>(block->marginLeft_ + block->paddingLeft_);
+            CGFloat hangingIndent = block->ordered_ ? 20.0 : 16.0;
             for (size_t li = 0; li < block->items_.size(); ++li) {
                 const auto& item = block->items_[li];
                 if (!item) continue;
-                NSString *prefixStr = block->ordered_ ? [NSString stringWithFormat:@"%zu.  ", li + 1] : @"•  ";
+                NSUInteger itemStart = blockAttr.length;
+                NSString *prefixStr = block->ordered_ ? [NSString stringWithFormat:@"%zu. ", li + 1] : @"• ";
                 UIFont *prefixFont = fontFromNodeProps(block->fontFamily_, block->fontSize_, block->fontWeight_, block->fontStyle_, block->fontFeatureSettings_);
                 NSMutableDictionary<NSAttributedStringKey, id> *prefixAttrs = [NSMutableDictionary dictionary];
                 prefixAttrs[NSFontAttributeName] = prefixFont;
@@ -574,56 +577,65 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                 for (const auto& inNode : item->children_) {
                     [blockAttr appendAttributedString:buildInlineAttributedString(inNode)];
                 }
+                NSMutableParagraphStyle *liStyle = [[NSMutableParagraphStyle alloc] init];
+                liStyle.firstLineHeadIndent = listLeftMargin;
+                liStyle.headIndent = listLeftMargin + hangingIndent;
                 if (li < block->items_.size() - 1) {
-                    [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\u2028"]];
+                    liStyle.paragraphSpacing = 6.0;
+                    [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
                 }
+                [blockAttr addAttribute:NSParagraphStyleAttributeName value:liStyle range:NSMakeRange(itemStart, blockAttr.length - itemStart)];
             }
         }
 
         if (blockAttr.length > 0) {
-            // Treat all intra-block newlines as soft line separators so paragraphSpacing only triggers at block boundaries
-            [blockAttr.mutableString replaceOccurrencesOfString:@"\n"
-                                                     withString:@"\u2028"
-                                                        options:0
-                                                          range:NSMakeRange(0, blockAttr.length)];
+            if (block->type_ != "List") {
+                // Treat all intra-block newlines as soft line separators so paragraphSpacing only triggers at block boundaries
+                [blockAttr.mutableString replaceOccurrencesOfString:@"\n"
+                                                         withString:@"\u2028"
+                                                            options:0
+                                                              range:NSMakeRange(0, blockAttr.length)];
+            }
 
             if (i < count - 1) {
                 [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
             }
 
-            NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
-            if (block->marginTop_ > 0) {
-                paragraphStyle.paragraphSpacingBefore = static_cast<CGFloat>(block->marginTop_);
+            if (block->type_ != "List") {
+                NSMutableParagraphStyle *paragraphStyle = [[NSMutableParagraphStyle alloc] init];
+                if (block->marginTop_ > 0) {
+                    paragraphStyle.paragraphSpacingBefore = static_cast<CGFloat>(block->marginTop_);
+                }
+                if (block->marginBottom_ > 0) {
+                    paragraphStyle.paragraphSpacing = static_cast<CGFloat>(block->marginBottom_);
+                }
+                if (block->lineHeight_ > 0) {
+                    paragraphStyle.minimumLineHeight = static_cast<CGFloat>(block->lineHeight_);
+                    paragraphStyle.maximumLineHeight = static_cast<CGFloat>(block->lineHeight_);
+                }
+                CGFloat leftIndent = static_cast<CGFloat>(block->marginLeft_ + block->paddingLeft_);
+                CGFloat firstLineIndent = static_cast<CGFloat>(block->marginLeft_ + block->paddingLeft_ + block->textIndent_);
+                CGFloat rightInset = static_cast<CGFloat>(block->marginRight_ + block->paddingRight_);
+                if (leftIndent > 0) {
+                    paragraphStyle.headIndent = leftIndent;
+                }
+                if (firstLineIndent > 0) {
+                    paragraphStyle.firstLineHeadIndent = firstLineIndent;
+                }
+                if (rightInset > 0) {
+                    paragraphStyle.tailIndent = -rightInset;
+                }
+                if (block->textAlign_ == "center") {
+                    paragraphStyle.alignment = NSTextAlignmentCenter;
+                } else if (block->textAlign_ == "right") {
+                    paragraphStyle.alignment = NSTextAlignmentRight;
+                } else if (block->textAlign_ == "justify") {
+                    paragraphStyle.alignment = NSTextAlignmentJustified;
+                } else if (block->textAlign_ == "left") {
+                    paragraphStyle.alignment = NSTextAlignmentLeft;
+                }
+                [blockAttr addAttribute:NSParagraphStyleAttributeName value:paragraphStyle range:NSMakeRange(0, blockAttr.length)];
             }
-            if (block->marginBottom_ > 0) {
-                paragraphStyle.paragraphSpacing = static_cast<CGFloat>(block->marginBottom_);
-            }
-            if (block->lineHeight_ > 0) {
-                paragraphStyle.minimumLineHeight = static_cast<CGFloat>(block->lineHeight_);
-                paragraphStyle.maximumLineHeight = static_cast<CGFloat>(block->lineHeight_);
-            }
-            CGFloat leftIndent = static_cast<CGFloat>(block->marginLeft_ + block->paddingLeft_);
-            CGFloat firstLineIndent = static_cast<CGFloat>(block->marginLeft_ + block->paddingLeft_ + block->textIndent_);
-            CGFloat rightInset = static_cast<CGFloat>(block->marginRight_ + block->paddingRight_);
-            if (leftIndent > 0) {
-                paragraphStyle.headIndent = leftIndent;
-            }
-            if (firstLineIndent > 0) {
-                paragraphStyle.firstLineHeadIndent = firstLineIndent;
-            }
-            if (rightInset > 0) {
-                paragraphStyle.tailIndent = -rightInset;
-            }
-            if (block->textAlign_ == "center") {
-                paragraphStyle.alignment = NSTextAlignmentCenter;
-            } else if (block->textAlign_ == "right") {
-                paragraphStyle.alignment = NSTextAlignmentRight;
-            } else if (block->textAlign_ == "justify") {
-                paragraphStyle.alignment = NSTextAlignmentJustified;
-            } else if (block->textAlign_ == "left") {
-                paragraphStyle.alignment = NSTextAlignmentLeft;
-            }
-            [blockAttr addAttribute:NSParagraphStyleAttributeName value:paragraphStyle range:NSMakeRange(0, blockAttr.length)];
             if (!block->backgroundColor_.empty()) {
                 UIColor *bg = colorFromHexString(block->backgroundColor_);
                 if (bg) {

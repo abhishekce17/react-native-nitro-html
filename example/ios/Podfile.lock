@@ -1,5 +1,5 @@
 PODS:
-  - FastHtmlParser (2.0.1):
+  - FastHtmlParser (0.1.2):
     - hermes-engine
     - NitroModules
     - RCTRequired
@@ -2028,7 +2028,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  FastHtmlParser: 8c0413e32fad5eb1c9da20a38b59e8fb6de21a34
+  FastHtmlParser: d40bf4ac9a66f4c1dc6e16a5d32fc30719ea1257
   FBLazyVector: c00c20551d40126351a6783c47ce75f5b374851b
   hermes-engine: e0f061c22e7a8ace2e49f8093fa5412928682bfc
   NitroModules: d61a1f895b7f6cdd50e5ab7d50b90d8ca1650ccd
@@ -2040,7 +2040,7 @@ SPEC CHECKSUMS:
   React: 1b1536b9099195944034e65b1830f463caaa8390
   React-callinvoker: 6dff6d17d1d6cc8fdf85468a649bafed473c65f5
   React-Core: 39ee05b5798296f433dd3c3624c57a187c1510e3
-  React-Core-prebuilt: 236b775729935a2cb407785af32c3faa54982b65
+  React-Core-prebuilt: e41a5287a55add0eb92e63092b49f446be339c3c
   React-CoreModules: e78bfd2617075bc0e50c689df4a29232bd72ad82
   React-cxxreact: 3fe21801d46097cf74c3dff6953677bebc4a3c2a
   React-debug: e1f00fcd2cef58a2897471a6d76a4ef5f5f90c74

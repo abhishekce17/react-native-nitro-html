@@ -694,10 +694,16 @@ object SpannableHtmlEngine {
             if (blockType == "List") {
                 val items = blockObj.optJSONArray("items")
                 val ordered = blockObj.optBoolean("ordered")
+                val listMl = blockObj.optDouble("marginLeft")
+                val listPl = blockObj.optDouble("paddingLeft")
+                val baseLeftIndent = ((listMl + listPl) * density).toInt()
+                val hangingIndent = if (ordered) (20 * density).toInt() else (16 * density).toInt()
+
                 if (items != null) {
                     for (li in 0 until items.length()) {
                         val itemObj = items.optJSONObject(li) ?: continue
-                        val prefix = if (ordered) "${li + 1}.  " else "•  "
+                        val itemStart = blockBuilder.length
+                        val prefix = if (ordered) "${li + 1}. " else "• "
                         val pStart = blockBuilder.length
                         blockBuilder.append(prefix)
                         val pEnd = blockBuilder.length
@@ -748,8 +754,32 @@ object SpannableHtmlEngine {
                                 appendInlineNode(blockBuilder, itemChildObj, onLinkPress, context)
                             }
                         }
+
+                        val itemContentEnd = blockBuilder.length
                         if (li < items.length() - 1) {
-                            blockBuilder.append("\n")
+                            val spacerStart = blockBuilder.length
+                            blockBuilder.append("\n\n")
+                            val spacerEnd = blockBuilder.length
+                            val liSpacingPx = (6 * density).toInt()
+                            blockBuilder.setSpan(
+                                AbsoluteSizeSpan(liSpacingPx, false),
+                                spacerStart + 1,
+                                spacerEnd,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            )
+                            blockBuilder.setSpan(
+                                LeadingMarginSpan.Standard(baseLeftIndent, baseLeftIndent + hangingIndent),
+                                itemStart,
+                                spacerStart + 1,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            )
+                        } else {
+                            blockBuilder.setSpan(
+                                LeadingMarginSpan.Standard(baseLeftIndent, baseLeftIndent + hangingIndent),
+                                itemStart,
+                                itemContentEnd,
+                                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            )
                         }
                     }
                 }
@@ -794,26 +824,33 @@ object SpannableHtmlEngine {
                         Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                     )
                 }
-                val ml = blockObj.optDouble("marginLeft")
-                val pl = blockObj.optDouble("paddingLeft")
-                val ti = blockObj.optDouble("textIndent")
-                val restIndent = ((ml + pl) * density).toInt()
-                val firstLineIndent = ((ml + pl + ti) * density).toInt()
-                if (restIndent > 0 || firstLineIndent > 0) {
-                    blockBuilder.setSpan(
-                        LeadingMarginSpan.Standard(firstLineIndent, restIndent),
-                        0,
-                        blockBuilder.length,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
                 val blw = blockObj.optDouble("borderLeftWidth")
                 val blc = blockObj.optString("borderLeftColor")
-                if (blw > 0 && blc.isNotEmpty()) {
+                val hasBorderLeft = (blw > 0 && blc.isNotEmpty())
+                if (blockType != "List") {
+                    val ml = blockObj.optDouble("marginLeft")
+                    val pl = blockObj.optDouble("paddingLeft")
+                    val ti = blockObj.optDouble("textIndent")
+                    val effectivePl = if (hasBorderLeft) 0.0 else pl
+                    val restIndent = ((ml + effectivePl) * density).toInt()
+                    val firstLineIndent = ((ml + effectivePl + ti) * density).toInt()
+                    if (restIndent > 0 || firstLineIndent > 0) {
+                        blockBuilder.setSpan(
+                            LeadingMarginSpan.Standard(firstLineIndent, restIndent),
+                            0,
+                            blockBuilder.length,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                }
+                if (hasBorderLeft) {
                     parseColor(blc)?.let {
+                        val stripePx = (blw * density).toInt()
+                        val pl = blockObj.optDouble("paddingLeft")
+                        val gapPx = if (pl > 0) (pl * density).toInt() else (10 * density).toInt()
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                             blockBuilder.setSpan(
-                                QuoteSpan(it, (blw * density).toInt(), (8 * density).toInt()),
+                                QuoteSpan(it, stripePx, gapPx),
                                 0,
                                 blockBuilder.length,
                                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE

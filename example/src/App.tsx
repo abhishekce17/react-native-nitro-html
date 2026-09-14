@@ -35,6 +35,7 @@ import {
   type ContentBlock,
   type ParsedArticle,
 } from 'react-native-nitro-html';
+import { GITPULSE_HTML } from './samples/gitpulseRaw';
 
 // ─── Theme Mode & Palette System ─────────────────────────────────────────────
 
@@ -483,9 +484,9 @@ const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></
 </custom-poll>
 
 <hr />
-<h2>4. Native Content Immediately Following Custom Components</h2>
-<p>This paragraph is placed directly below the custom React components and continues rendering seamlessly through the high-performance native host view with continuous text selection support!</p>
 `;
+
+// GITPULSE_HTML is imported from './samples/gitpulseRaw'
 
 const TYPOGRAPHY_HTML = `
 <h1>🖋️ Typography &amp; Font Family Engine</h1>
@@ -1645,6 +1646,10 @@ function CustomRenderersTab({ theme }: { theme: AppTheme }) {
     setSelectedVote(option);
   };
 
+  const [selectedArticle, setSelectedArticle] = useState<'demo' | 'gitpulse'>(
+    'gitpulse'
+  );
+
   return (
     <ScrollView contentContainerStyle={styles.tabContent}>
       <Text style={[styles.sectionLabel, { color: theme.accent }]}>
@@ -1654,6 +1659,58 @@ function CustomRenderersTab({ theme }: { theme: AppTheme }) {
         Demonstrating custom interactive CodeBlocks, Video Players, and custom
         widget elements injected directly into the native rendering stream.
       </Text>
+
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <TouchableOpacity
+          style={[
+            styles.tabBtn,
+            { borderRadius: 8, backgroundColor: theme.surface },
+            selectedArticle === 'gitpulse' && {
+              backgroundColor: theme.accent,
+            },
+          ]}
+          onPress={() => setSelectedArticle('gitpulse')}
+        >
+          <Text
+            style={[
+              styles.tabBtnText,
+              {
+                color:
+                  selectedArticle === 'gitpulse'
+                    ? '#ffffff'
+                    : theme.textPrimary,
+                fontWeight: selectedArticle === 'gitpulse' ? 'bold' : 'normal',
+              },
+            ]}
+          >
+            Dev.to GitPulse Article
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tabBtn,
+            { borderRadius: 8, backgroundColor: theme.surface },
+            selectedArticle === 'demo' && {
+              backgroundColor: theme.accent,
+            },
+          ]}
+          onPress={() => setSelectedArticle('demo')}
+        >
+          <Text
+            style={[
+              styles.tabBtnText,
+              {
+                color:
+                  selectedArticle === 'demo' ? '#ffffff' : theme.textPrimary,
+                fontWeight: selectedArticle === 'demo' ? 'bold' : 'normal',
+              },
+            ]}
+          >
+            Interactive Demo
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <View
         style={[
           styles.card,
@@ -1661,7 +1718,7 @@ function CustomRenderersTab({ theme }: { theme: AppTheme }) {
         ]}
       >
         <FastHtmlView
-          html={CUSTOM_HTML}
+          html={selectedArticle === 'gitpulse' ? GITPULSE_HTML : CUSTOM_HTML}
           baseStyle={{
             color: theme.textPrimary,
             backgroundColor: theme.cardBg,

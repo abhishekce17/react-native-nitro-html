@@ -611,6 +611,21 @@ describe('3. FastHtmlView Props Verification', () => {
     expect(el.props.renderers?.CodeBlock).toBe(CustomCode);
   });
 
+  it('preserves heading and paragraph tags across interleaved custom renderers', () => {
+    const CustomCode = ({ block }: any) =>
+      React.createElement('Text', { testID: 'code-block' }, block.code);
+
+    const el = React.createElement(FastHtmlView, {
+      html: '<p>Intro</p><pre><code>npx gitpulse</code></pre><p>Body text</p><h2>The Bug</h2><p>Explanation</p><pre><code>run(cmd)</code></pre>',
+      renderers: {
+        CodeBlock: CustomCode,
+      },
+    });
+
+    expect(el).toBeDefined();
+    expect(el.props.renderers?.CodeBlock).toBe(CustomCode);
+  });
+
   it('supports selectable prop (true | false)', () => {
     const selectableEl = React.createElement(FastHtmlView, {
       html: '<p>Selectable text</p>',
