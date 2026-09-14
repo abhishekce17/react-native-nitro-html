@@ -1,9 +1,6 @@
 import type React from 'react';
 import type { TextStyle, ViewStyle } from 'react-native';
-import type {
-  ContentBlock,
-  ParsedArticle,
-} from '../FastHtmlParser.nitro';
+import type { ContentBlock, ParsedArticle } from '../FastHtmlParser.nitro';
 import type { NativeTextStyle } from '../NativeHtmlView.nitro';
 
 export type { NativeTextStyle };
