@@ -12,6 +12,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import {
   Alert,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -482,6 +483,14 @@ const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></
 <custom-poll title="Which engine performs best?" id="poll-01">
   <p>Vote for your favorite React Native HTML architecture:</p>
 </custom-poll>
+
+<hr />
+<h2>4. Nested Link Card with Lazy Image (&lt;a&gt; wrapping &lt;img data-src&gt; &amp; &lt;h3&gt;)</h2>
+<a href="https://github.com/mrousavy/nitro">
+  <img data-src="https://picsum.photos/seed/nitro-card/600/240" alt="Nitro Modules Card Cover" />
+  <h3>⚡ Nitro Modules: Fast, Type-Safe Native Modules</h3>
+  <p>Universal nested block handling propagates the link URL down to the image and headings!</p>
+</a>
 
 <hr />
 `;
@@ -1847,6 +1856,79 @@ function CustomRenderersTab({ theme }: { theme: AppTheme }) {
                   );
                 })}
               </View>
+            ),
+            'Image': ({ block }: { block: ContentBlock }) => (
+              <TouchableOpacity
+                activeOpacity={block.linkUrl ? 0.8 : 1}
+                onPress={() =>
+                  block.linkUrl
+                    ? Alert.alert(
+                        'Image Link Clicked!',
+                        `Navigating to:\n${block.linkUrl}`
+                      )
+                    : null
+                }
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.isDark ? '#1e293b' : '#f1f5f9',
+                    borderColor: block.linkUrl
+                      ? theme.accent
+                      : theme.cardBorder,
+                    padding: 8,
+                    marginVertical: 8,
+                    overflow: 'hidden',
+                  },
+                ]}
+              >
+                {!!block.url && (
+                  <Image
+                    source={{ uri: block.url }}
+                    style={{
+                      width: '100%',
+                      height: 180,
+                      borderRadius: 8,
+                      backgroundColor: theme.isDark ? '#0f172a' : '#e2e8f0',
+                    }}
+                    resizeMode="cover"
+                  />
+                )}
+                {!!block.alt && (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: theme.textMuted,
+                      marginTop: 6,
+                      textAlign: 'center',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    {block.alt}
+                  </Text>
+                )}
+                {!!block.linkUrl && (
+                  <View
+                    style={{
+                      backgroundColor: theme.accent,
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      marginTop: 6,
+                      alignSelf: 'center',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: '#ffffff',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      🔗 Target Link: {block.linkUrl}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             ),
           }}
           onLinkPress={(url: string) => Alert.alert('onLinkPress', url)}

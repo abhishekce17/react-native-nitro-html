@@ -83,6 +83,29 @@ static std::string getNodeText(lxb_dom_node_t* node) {
     return result;
 }
 
+static std::string getImageSrc(lxb_dom_element_t* element) {
+    if (!element) return "";
+    std::string src = getAttribute(element, "src");
+    if (!src.empty()) return src;
+    src = getAttribute(element, "data-src");
+    if (!src.empty()) return src;
+    src = getAttribute(element, "data-original");
+    if (!src.empty()) return src;
+    src = getAttribute(element, "data-lazy-src");
+    if (!src.empty()) return src;
+    src = getAttribute(element, "data-actualsrc");
+    if (!src.empty()) return src;
+    std::string srcset = getAttribute(element, "srcset");
+    if (!srcset.empty()) {
+        size_t space = srcset.find_first_of(" \t\r\n,");
+        if (space != std::string::npos) {
+            return srcset.substr(0, space);
+        }
+        return srcset;
+    }
+    return "";
+}
+
 // ── Style Context & Tag Style Resolver ───────────────────────────────────────
 struct StyleContext {
     double fontSize{16.0};
@@ -97,6 +120,7 @@ struct StyleContext {
     std::string textAlign{""};
     double opacity{1.0};
     std::string fontFeatureSettings{""};
+    std::string linkUrl{""};
 };
 
 static std::string normalizeHtmlWhitespace(const std::string& input) {
@@ -859,6 +883,10 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
             case LXB_TAG_BR:
             case LXB_TAG_WBR:
                 return std::make_shared<HybridInlineNode>("Break", "", "");
+            case LXB_TAG_IMG:
+                type = "Image";
+                url = getImageSrc(elem);
+                break;
             default:
                 type = "Span";
                 break;
@@ -963,6 +991,45 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
     return nullptr;
 }
 
+static bool isAtomicWidget(lxb_dom_node_t* node) {
+    if (!node || node->type != LXB_DOM_NODE_TYPE_ELEMENT) return false;
+    lxb_tag_id_t tagId = lxb_dom_node_tag_id(node);
+    if (tagId == LXB_TAG_IMG || tagId == LXB_TAG_VIDEO || tagId == LXB_TAG_AUDIO ||
+        tagId == LXB_TAG_PRE || tagId == LXB_TAG_TABLE || tagId == LXB_TAG_UL ||
+        tagId == LXB_TAG_OL || tagId == LXB_TAG_DL || tagId == LXB_TAG_HR ||
+        tagId == LXB_TAG_FIGURE || tagId == LXB_TAG_IFRAME || tagId == LXB_TAG_EMBED) {
+        return true;
+    }
+    std::string tagName = getNodeTagName(node);
+    if (!tagName.empty() && tagName.find('-') != std::string::npos) {
+        return true;
+    }
+    return false;
+}
+
+static bool hasBlockOrWidgetDescendant(lxb_dom_node_t* node) {
+    if (!node) return false;
+    lxb_dom_node_t* child = node->first_child;
+    while (child) {
+        if (child->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+            lxb_tag_id_t tid = lxb_dom_node_tag_id(child);
+            if (isAtomicWidget(child) ||
+                (tid >= LXB_TAG_H1 && tid <= LXB_TAG_H6) ||
+                tid == LXB_TAG_P || tid == LXB_TAG_BLOCKQUOTE || tid == LXB_TAG_Q ||
+                tid == LXB_TAG_DIV || tid == LXB_TAG_SECTION || tid == LXB_TAG_ARTICLE ||
+                tid == LXB_TAG_MAIN || tid == LXB_TAG_HEADER || tid == LXB_TAG_FOOTER ||
+                tid == LXB_TAG_ASIDE || tid == LXB_TAG_NAV || tid == LXB_TAG_FORM) {
+                return true;
+            }
+            if (hasBlockOrWidgetDescendant(child)) {
+                return true;
+            }
+        }
+        child = child->next;
+    }
+    return false;
+}
+
 static bool isBlockElement(lxb_dom_node_t* node) {
     if (!node || node->type != LXB_DOM_NODE_TYPE_ELEMENT) return false;
     lxb_tag_id_t tagId = lxb_dom_node_tag_id(node);
@@ -975,11 +1042,16 @@ static bool isBlockElement(lxb_dom_node_t* node) {
         tagId == LXB_TAG_ARTICLE || tagId == LXB_TAG_MAIN || tagId == LXB_TAG_HEADER ||
         tagId == LXB_TAG_FOOTER || tagId == LXB_TAG_ASIDE || tagId == LXB_TAG_NAV ||
         tagId == LXB_TAG_BODY || tagId == LXB_TAG_HTML || tagId == LXB_TAG_CENTER ||
-        tagId == LXB_TAG_FORM || tagId == LXB_TAG_FIELDSET) {
+        tagId == LXB_TAG_FORM || tagId == LXB_TAG_FIELDSET || tagId == LXB_TAG_DETAILS ||
+        tagId == LXB_TAG_SUMMARY) {
         return true;
     }
     std::string tagName = getNodeTagName(node);
     if (!tagName.empty() && tagName.find('-') != std::string::npos) {
+        return true;
+    }
+    // Any phrasing/container element containing block or widget descendants
+    if (hasBlockOrWidgetDescendant(node)) {
         return true;
     }
     return false;
@@ -1030,6 +1102,37 @@ static void collectInlineChildren(
             }
         }
     }
+}
+
+static std::shared_ptr<HybridContentBlock> createImageBlock(
+    lxb_dom_node_t* imgNode,
+    const std::string& linkUrl,
+    const StyleContext& baseCtx,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
+) {
+    auto block = std::make_shared<HybridContentBlock>("Image");
+    block->html_ = serializeNodeHtml(imgNode);
+    lxb_dom_element_t* elem = lxb_dom_interface_element(imgNode);
+    block->url_ = getImageSrc(elem);
+    block->alt_ = getAttribute(elem, "alt");
+    block->title_ = getAttribute(elem, "title");
+    block->linkUrl_ = linkUrl;
+    block->fontSize_ = baseCtx.fontSize;
+    block->marginTop_ = 6.0;
+    block->marginBottom_ = 14.0;
+    block->backgroundColor_ = "#F1F5F9";
+
+    StyleContext imgCtx = baseCtx;
+    applyNodeStyling(block.get(), elem, "img", tagsStyles, imgCtx);
+
+    std::string label = "🖼️ " + (!block->alt_.empty() ? "[" + block->alt_ + "]" : "[Image]");
+    auto imgInline = std::make_shared<HybridInlineNode>("Text", label, linkUrl);
+    imgInline->fontStyle_ = "italic";
+    imgInline->color_ = "#64748B";
+    imgInline->fontSize_ = baseCtx.fontSize;
+    block->children_.push_back(imgInline);
+
+    return block;
 }
 
 static void walkDomNode(
@@ -1184,12 +1287,27 @@ static void walkDomNode(
 
     // Headings: <h1> to <h6>
     if (tagId >= LXB_TAG_H1 && tagId <= LXB_TAG_H6) {
+        if (hasBlockOrWidgetDescendant(node)) {
+            StyleContext hCtx = baseCtx;
+            if (tagId == LXB_TAG_H1) hCtx.fontSize = baseCtx.fontSize * 2.0;
+            else if (tagId == LXB_TAG_H2) hCtx.fontSize = baseCtx.fontSize * 1.5;
+            else if (tagId == LXB_TAG_H3) hCtx.fontSize = baseCtx.fontSize * 1.25;
+            else if (tagId == LXB_TAG_H4) hCtx.fontSize = baseCtx.fontSize * 1.125;
+            else if (tagId == LXB_TAG_H5) hCtx.fontSize = baseCtx.fontSize * 1.0;
+            else hCtx.fontSize = baseCtx.fontSize * 0.875;
+            hCtx.fontWeight = "bold";
+            applyNodeStyling(nullptr, elem, tagName, tagsStyles, hCtx);
+            walkDomChildren(node, blocks, hCtx, tagsStyles);
+            return;
+        }
+
         auto block = std::make_shared<HybridContentBlock>("Heading");
         block->html_ = serializeNodeHtml(node);
         block->level_ = static_cast<double>(tagId - LXB_TAG_H1 + 1);
         block->fontWeight_ = "bold";
         block->color_ = baseCtx.color;
         block->fontFamily_ = baseCtx.fontFamily;
+        block->linkUrl_ = baseCtx.linkUrl;
 
         if (block->level_ == 1) {
             block->fontSize_ = baseCtx.fontSize * 2.0; block->marginTop_ = 16.0; block->marginBottom_ = 12.0;
@@ -1216,8 +1334,25 @@ static void walkDomNode(
         return;
     }
 
+    // Link wrapping blocks or widgets: <a href="...">...</a>
+    if (tagId == LXB_TAG_A) {
+        std::string href = getAttribute(elem, "href");
+        StyleContext aCtx = baseCtx;
+        if (!href.empty()) aCtx.linkUrl = href;
+        applyNodeStyling(nullptr, elem, "a", tagsStyles, aCtx);
+        walkDomChildren(node, blocks, aCtx, tagsStyles);
+        return;
+    }
+
     // Paragraph: <p>
     if (tagId == LXB_TAG_P) {
+        if (hasBlockOrWidgetDescendant(node)) {
+            StyleContext pCtx = baseCtx;
+            applyNodeStyling(nullptr, elem, "p", tagsStyles, pCtx);
+            walkDomChildren(node, blocks, pCtx, tagsStyles);
+            return;
+        }
+
         auto block = std::make_shared<HybridContentBlock>("Paragraph");
         block->html_ = serializeNodeHtml(node);
         block->fontSize_ = baseCtx.fontSize;
@@ -1228,12 +1363,15 @@ static void walkDomNode(
         block->fontStyle_ = baseCtx.fontStyle;
         block->lineHeight_ = baseCtx.lineHeight;
         block->marginBottom_ = 12.0;
+        block->linkUrl_ = baseCtx.linkUrl;
 
         StyleContext pCtx = baseCtx;
         applyNodeStyling(block.get(), elem, "p", tagsStyles, pCtx);
 
         collectInlineChildren(node, block->children_, pCtx, tagsStyles);
-        blocks.push_back(block);
+        if (!block->children_.empty()) {
+            blocks.push_back(block);
+        }
         return;
     }
 
@@ -1543,26 +1681,7 @@ static void walkDomNode(
 
     // Image: <img>
     if (tagId == LXB_TAG_IMG) {
-        auto block = std::make_shared<HybridContentBlock>("Image");
-        block->html_ = serializeNodeHtml(node);
-        block->url_ = getAttribute(elem, "src");
-        block->alt_ = getAttribute(elem, "alt");
-        block->title_ = getAttribute(elem, "title");
-        block->fontSize_ = baseCtx.fontSize;
-        block->marginTop_ = 6.0;
-        block->marginBottom_ = 14.0;
-        block->backgroundColor_ = "#F1F5F9";
-
-        StyleContext imgCtx = baseCtx;
-        applyNodeStyling(block.get(), elem, "img", tagsStyles, imgCtx);
-
-        std::string label = "🖼️ " + (!block->alt_.empty() ? "[" + block->alt_ + "]" : "[Image]");
-        auto imgNode = std::make_shared<HybridInlineNode>("Text", label, "");
-        imgNode->fontStyle_ = "italic";
-        imgNode->color_ = "#64748B";
-        imgNode->fontSize_ = baseCtx.fontSize;
-        block->children_.push_back(imgNode);
-
+        auto block = createImageBlock(node, baseCtx.linkUrl, baseCtx, tagsStyles);
         blocks.push_back(block);
         return;
     }
@@ -1577,6 +1696,7 @@ static void walkDomNode(
         block->marginBottom_ = 14.0;
         block->backgroundColor_ = "#F1F5F9";
         block->paddingTop_ = 4.0;
+        block->linkUrl_ = baseCtx.linkUrl;
 
         StyleContext figCtx = baseCtx;
         applyNodeStyling(block.get(), elem, "figure", tagsStyles, figCtx);
@@ -1588,10 +1708,14 @@ static void walkDomNode(
                     lxb_tag_id_t tid = lxb_dom_node_tag_id(c);
                     if (tid == LXB_TAG_IMG) {
                         lxb_dom_element_t* imgElem = lxb_dom_interface_element(c);
-                        block->url_ = getAttribute(imgElem, "src");
+                        block->url_ = getImageSrc(imgElem);
                         block->alt_ = getAttribute(imgElem, "alt");
+                        block->title_ = getAttribute(imgElem, "title");
                     } else if (tid == LXB_TAG_FIGCAPTION) {
                         block->caption_ = getNodeText(c);
+                    } else if (tid == LXB_TAG_A) {
+                        block->linkUrl_ = getAttribute(lxb_dom_interface_element(c), "href");
+                        scanFigure(c);
                     } else {
                         scanFigure(c);
                     }
@@ -1602,7 +1726,7 @@ static void walkDomNode(
         scanFigure(node);
 
         std::string imgLabel = "🖼️ " + (!block->alt_.empty() ? "[" + block->alt_ + "]" : "[Figure Image]");
-        auto imgNode = std::make_shared<HybridInlineNode>("Text", imgLabel, "");
+        auto imgNode = std::make_shared<HybridInlineNode>("Text", imgLabel, block->linkUrl_);
         imgNode->fontStyle_ = "italic";
         imgNode->color_ = "#64748B";
         imgNode->fontSize_ = baseCtx.fontSize;
@@ -1677,12 +1801,13 @@ static void walkDomNode(
         return;
     }
 
-    // Standard structural containers -> recurse into children
+    // Standard structural containers OR any element containing block/widget descendants -> recurse into children
     if (tagId == LXB_TAG_DIV || tagId == LXB_TAG_SECTION || tagId == LXB_TAG_ARTICLE ||
         tagId == LXB_TAG_MAIN || tagId == LXB_TAG_HEADER || tagId == LXB_TAG_FOOTER ||
         tagId == LXB_TAG_ASIDE || tagId == LXB_TAG_NAV || tagId == LXB_TAG_BODY ||
         tagId == LXB_TAG_HTML || tagId == LXB_TAG_CENTER || tagId == LXB_TAG_FORM ||
-        tagId == LXB_TAG_FIELDSET) {
+        tagId == LXB_TAG_FIELDSET || tagId == LXB_TAG_DETAILS || tagId == LXB_TAG_SUMMARY ||
+        hasBlockOrWidgetDescendant(node)) {
         StyleContext divCtx = baseCtx;
         applyNodeStyling(nullptr, elem, tagName, tagsStyles, divCtx);
         walkDomChildren(node, blocks, divCtx, tagsStyles);
@@ -1718,6 +1843,7 @@ static void walkDomNode(
         p->fontWeight_ = in->fontWeight_;
         p->fontStyle_ = in->fontStyle_;
         p->marginBottom_ = 12.0;
+        p->linkUrl_ = baseCtx.linkUrl;
         p->children_.push_back(in);
         blocks.push_back(p);
     }
