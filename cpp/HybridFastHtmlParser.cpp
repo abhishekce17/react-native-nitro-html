@@ -719,6 +719,18 @@ static void applyNodeStyling(
     }
 }
 
+static bool hasVisibleInlineContent(const std::shared_ptr<HybridInlineNode>& node) {
+    if (!node) return false;
+    if (node->type_ == "Break" || node->type_ == "Image") return true;
+    if (!node->text_.empty()) {
+        if (node->text_.find_first_not_of(" \t\n\r") != std::string::npos) return true;
+    }
+    for (const auto& child : node->children_) {
+        if (hasVisibleInlineContent(child)) return true;
+    }
+    return false;
+}
+
 static std::shared_ptr<HybridInlineNode> parseInlineNode(
     lxb_dom_node_t* node,
     const StyleContext& parentCtx,
@@ -803,9 +815,17 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
             case LXB_TAG_TT:
                 type = "Code";
                 fontFamily = "monospace";
-                fontSize = parentCtx.fontSize * 0.9;
-                backgroundColor = "#F1F5F9";
-                color = "#0F172A";
+                backgroundColor = "#f1f5f9";
+                break;
+            case LXB_TAG_MARK:
+                type = "Mark";
+                backgroundColor = "#FEF08A";
+                color = "#854D0E";
+                break;
+            case LXB_TAG_U:
+            case LXB_TAG_INS:
+                type = "Underline";
+                isUnderline = true;
                 break;
             case LXB_TAG_S:
             case LXB_TAG_STRIKE:
@@ -813,11 +833,6 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
                 type = "Strikethrough";
                 isStrikethrough = true;
                 color = "#64748B";
-                break;
-            case LXB_TAG_U:
-            case LXB_TAG_INS:
-                type = "Underline";
-                isUnderline = true;
                 break;
             case LXB_TAG_SUP:
                 type = "Superscript";
@@ -828,11 +843,6 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
                 type = "Subscript";
                 fontSize = parentCtx.fontSize * 0.75;
                 baselineShift = -4.0;
-                break;
-            case LXB_TAG_MARK:
-                type = "Mark";
-                backgroundColor = "#FEF08A";
-                color = "#854D0E";
                 break;
             case LXB_TAG_SMALL:
                 type = "Small";
@@ -935,10 +945,37 @@ static std::shared_ptr<HybridInlineNode> parseInlineNode(
             }
             child = child->next;
         }
+
+        if (!hasVisibleInlineContent(inlineNode)) {
+            return nullptr;
+        }
+
         return inlineNode;
     }
 
     return nullptr;
+}
+
+static bool isBlockElement(lxb_dom_node_t* node) {
+    if (!node || node->type != LXB_DOM_NODE_TYPE_ELEMENT) return false;
+    lxb_tag_id_t tagId = lxb_dom_node_tag_id(node);
+    if ((tagId >= LXB_TAG_H1 && tagId <= LXB_TAG_H6) ||
+        tagId == LXB_TAG_P || tagId == LXB_TAG_BLOCKQUOTE || tagId == LXB_TAG_Q ||
+        tagId == LXB_TAG_PRE || tagId == LXB_TAG_UL || tagId == LXB_TAG_OL ||
+        tagId == LXB_TAG_TABLE || tagId == LXB_TAG_DL || tagId == LXB_TAG_IMG ||
+        tagId == LXB_TAG_FIGURE || tagId == LXB_TAG_VIDEO || tagId == LXB_TAG_AUDIO ||
+        tagId == LXB_TAG_HR || tagId == LXB_TAG_DIV || tagId == LXB_TAG_SECTION ||
+        tagId == LXB_TAG_ARTICLE || tagId == LXB_TAG_MAIN || tagId == LXB_TAG_HEADER ||
+        tagId == LXB_TAG_FOOTER || tagId == LXB_TAG_ASIDE || tagId == LXB_TAG_NAV ||
+        tagId == LXB_TAG_BODY || tagId == LXB_TAG_HTML || tagId == LXB_TAG_CENTER ||
+        tagId == LXB_TAG_FORM || tagId == LXB_TAG_FIELDSET) {
+        return true;
+    }
+    std::string tagName = getNodeTagName(node);
+    if (!tagName.empty() && tagName.find('-') != std::string::npos) {
+        return true;
+    }
+    return false;
 }
 
 static void collectInlineChildren(
@@ -949,12 +986,42 @@ static void collectInlineChildren(
 ) {
     if (!parent) return;
     lxb_dom_node_t* child = parent->first_child;
+    bool lastWasBreakOrStart = true;
+
     while (child) {
         auto in = parseInlineNode(child, ctx, tagsStyles);
         if (in) {
-            inlines.push_back(in);
+            if (in->type_ == "Break") {
+                inlines.push_back(in);
+                lastWasBreakOrStart = true;
+            } else {
+                if (in->type_ == "Text") {
+                    // W3C Rule: ignore whitespace immediately following <br> or block start
+                    if (lastWasBreakOrStart && !in->text_.empty() && in->text_.front() == ' ') {
+                        in->text_.erase(0, 1);
+                    }
+                    if (!in->text_.empty()) {
+                        inlines.push_back(in);
+                        lastWasBreakOrStart = (in->text_.back() == ' ');
+                    }
+                } else {
+                    inlines.push_back(in);
+                    lastWasBreakOrStart = false;
+                }
+            }
         }
         child = child->next;
+    }
+
+    // Strip trailing space from the last Text node in the block
+    if (!inlines.empty()) {
+        auto& lastNode = inlines.back();
+        if (lastNode && lastNode->type_ == "Text" && !lastNode->text_.empty() && lastNode->text_.back() == ' ') {
+            lastNode->text_.pop_back();
+            if (lastNode->text_.empty()) {
+                inlines.pop_back();
+            }
+        }
     }
 }
 
@@ -973,10 +1040,91 @@ static void walkDomChildren(
 ) {
     if (!parent) return;
     lxb_dom_node_t* child = parent->first_child;
+
+    std::shared_ptr<HybridContentBlock> currentAnonymousParagraph = nullptr;
+    bool lastWasBreakOrStart = true;
+
+    auto flushAnonymousParagraph = [&]() {
+        if (currentAnonymousParagraph) {
+            if (!currentAnonymousParagraph->children_.empty()) {
+                auto& lastNode = currentAnonymousParagraph->children_.back();
+                if (lastNode && lastNode->type_ == "Text" && !lastNode->text_.empty() && lastNode->text_.back() == ' ') {
+                    lastNode->text_.pop_back();
+                    if (lastNode->text_.empty()) {
+                        currentAnonymousParagraph->children_.pop_back();
+                    }
+                }
+            }
+            if (!currentAnonymousParagraph->children_.empty()) {
+                blocks.push_back(currentAnonymousParagraph);
+            }
+            currentAnonymousParagraph = nullptr;
+            lastWasBreakOrStart = true;
+        }
+    };
+
     while (child) {
-        walkDomNode(child, blocks, baseCtx, tagsStyles);
+        if (child->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+            lxb_tag_id_t tid = lxb_dom_node_tag_id(child);
+            if (tid == LXB_TAG_SCRIPT || tid == LXB_TAG_STYLE || tid == LXB_TAG_HEAD ||
+                tid == LXB_TAG_TITLE || tid == LXB_TAG_META || tid == LXB_TAG_LINK ||
+                tid == LXB_TAG_TEMPLATE) {
+                child = child->next;
+                continue;
+            }
+        }
+
+        if (isBlockElement(child)) {
+            flushAnonymousParagraph();
+            walkDomNode(child, blocks, baseCtx, tagsStyles);
+        } else {
+            // Group consecutive inline phrasing nodes and text into an anonymous paragraph
+            if (child->type == LXB_DOM_NODE_TYPE_TEXT) {
+                std::string str = getNodeText(child);
+                if (!currentAnonymousParagraph && str.find_first_not_of(" \t\n\r") == std::string::npos) {
+                    child = child->next;
+                    continue;
+                }
+            }
+
+            auto in = parseInlineNode(child, baseCtx, tagsStyles);
+            if (in) {
+                if (!currentAnonymousParagraph) {
+                    currentAnonymousParagraph = std::make_shared<HybridContentBlock>("Paragraph");
+                    currentAnonymousParagraph->fontSize_ = baseCtx.fontSize;
+                    currentAnonymousParagraph->color_ = baseCtx.color;
+                    currentAnonymousParagraph->backgroundColor_ = baseCtx.backgroundColor;
+                    currentAnonymousParagraph->fontFamily_ = baseCtx.fontFamily;
+                    currentAnonymousParagraph->fontWeight_ = baseCtx.fontWeight;
+                    currentAnonymousParagraph->fontStyle_ = baseCtx.fontStyle;
+                    currentAnonymousParagraph->lineHeight_ = baseCtx.lineHeight;
+                    currentAnonymousParagraph->marginBottom_ = 12.0;
+                    lastWasBreakOrStart = true;
+                }
+
+                if (in->type_ == "Break") {
+                    currentAnonymousParagraph->children_.push_back(in);
+                    lastWasBreakOrStart = true;
+                } else {
+                    if (in->type_ == "Text") {
+                        if (lastWasBreakOrStart && !in->text_.empty() && in->text_.front() == ' ') {
+                            in->text_.erase(0, 1);
+                        }
+                        if (!in->text_.empty()) {
+                            currentAnonymousParagraph->children_.push_back(in);
+                            lastWasBreakOrStart = (in->text_.back() == ' ');
+                        }
+                    } else {
+                        currentAnonymousParagraph->children_.push_back(in);
+                        lastWasBreakOrStart = false;
+                    }
+                }
+            }
+        }
         child = child->next;
     }
+
+    flushAnonymousParagraph();
 }
 
 static void walkDomNode(
