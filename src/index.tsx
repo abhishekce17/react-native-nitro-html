@@ -2,7 +2,12 @@ export {
   parseHTML,
   parseHTMLAsync,
   normalizeHTML,
-  calculateHTMLHeight,
+  calculateHTMLLayout,
+  calculateHTMLLayoutAsync,
+  getAstId,
+  storeAst,
+  getAst,
+  clearAstCache,
 } from './parser';
 
 export { FastHtmlView, NativeHtmlView } from './renderer/FastHtmlView';
@@ -29,6 +34,7 @@ export type {
   DefinitionItem,
   ContentBlock,
   ParsedArticle,
+  HtmlLayoutMeasurement,
   FastHtmlParser,
 } from './FastHtmlParser.nitro';
 

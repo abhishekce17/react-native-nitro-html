@@ -576,57 +576,6 @@ final class FastHtmlTextView: UITextView {
   }
 }
 
-private func areNativeTextStylesEqual(_ lhs: NativeTextStyle?, _ rhs: NativeTextStyle?) -> Bool {
-  if lhs == nil && rhs == nil { return true }
-  guard let lhs = lhs, let rhs = rhs else { return false }
-  return lhs.fontSize == rhs.fontSize &&
-    lhs.color == rhs.color &&
-    lhs.lineHeight == rhs.lineHeight &&
-    lhs.fontFamily == rhs.fontFamily &&
-    lhs.fontWeight == rhs.fontWeight &&
-    lhs.fontStyle == rhs.fontStyle &&
-    lhs.letterSpacing == rhs.letterSpacing &&
-    lhs.textAlign == rhs.textAlign &&
-    lhs.textTransform == rhs.textTransform &&
-    lhs.textIndent == rhs.textIndent &&
-    lhs.textDecorationLine == rhs.textDecorationLine &&
-    lhs.textDecorationColor == rhs.textDecorationColor &&
-    lhs.textDecorationStyle == rhs.textDecorationStyle &&
-    lhs.backgroundColor == rhs.backgroundColor &&
-    lhs.opacity == rhs.opacity &&
-    lhs.margin == rhs.margin &&
-    lhs.marginVertical == rhs.marginVertical &&
-    lhs.marginHorizontal == rhs.marginHorizontal &&
-    lhs.marginTop == rhs.marginTop &&
-    lhs.marginBottom == rhs.marginBottom &&
-    lhs.marginLeft == rhs.marginLeft &&
-    lhs.marginRight == rhs.marginRight &&
-    lhs.padding == rhs.padding &&
-    lhs.paddingVertical == rhs.paddingVertical &&
-    lhs.paddingHorizontal == rhs.paddingHorizontal &&
-    lhs.paddingTop == rhs.paddingTop &&
-    lhs.paddingBottom == rhs.paddingBottom &&
-    lhs.paddingLeft == rhs.paddingLeft &&
-    lhs.paddingRight == rhs.paddingRight &&
-    lhs.borderWidth == rhs.borderWidth &&
-    lhs.borderColor == rhs.borderColor &&
-    lhs.borderRadius == rhs.borderRadius &&
-    lhs.borderLeftColor == rhs.borderLeftColor &&
-    lhs.borderLeftWidth == rhs.borderLeftWidth &&
-    lhs.fontFeatureSettings == rhs.fontFeatureSettings
-}
-
-private func areTagsStylesEqual(_ lhs: [String: NativeTextStyle]?, _ rhs: [String: NativeTextStyle]?) -> Bool {
-  if lhs == nil && rhs == nil { return true }
-  guard let lhs = lhs, let rhs = rhs else { return false }
-  if lhs.count != rhs.count { return false }
-  for (key, val) in lhs {
-    guard let rhsVal = rhs[key] else { return false }
-    if !areNativeTextStylesEqual(val, rhsVal) { return false }
-  }
-  return true
-}
-
 /// Native HTML view backed by iOS system HTML engine, implementing the Nitrogen-generated HybridView spec.
 open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtmlViewSpec_protocol {
 
@@ -641,25 +590,9 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
 
   // MARK: - Props
 
-  public var html: String? {
+  public var astId: String? {
     didSet {
-      if oldValue != html {
-        setNeedsContentUpdate()
-      }
-    }
-  }
-
-  public var baseStyle: NativeTextStyle? {
-    didSet {
-      if !areNativeTextStylesEqual(oldValue, baseStyle) {
-        setNeedsContentUpdate()
-      }
-    }
-  }
-
-  public var tagsStyles: Dictionary<String, NativeTextStyle>? {
-    didSet {
-      if !areTagsStylesEqual(oldValue, tagsStyles) {
+      if oldValue != astId {
         setNeedsContentUpdate()
       }
     }
@@ -724,7 +657,7 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
   }
 
   private func updateContent() {
-    guard let rawHtml = html, !rawHtml.isEmpty else {
+    guard let currentAstId = astId, !currentAstId.isEmpty else {
       (textView as? FastHtmlTextView)?.cancelPendingDownloads()
       textView.attributedText = NSAttributedString(string: "")
       (textView as? FastHtmlTextView)?.rebuildSubviews(for: NSAttributedString(string: ""))
@@ -735,9 +668,7 @@ open class HybridNativeHtmlView: HybridNativeHtmlViewSpec_base, HybridNativeHtml
 
     let targetWidth = textView.bounds.width > 0 ? textView.bounds.width : (UIScreen.main.bounds.width - 64)
     let attr = TextKit2HtmlEngine.shared.buildAttributedString(
-      from: rawHtml,
-      baseStyle: baseStyle,
-      tagsStyles: tagsStyles,
+      astId: currentAstId,
       containerWidth: targetWidth
     )
     textView.attributedText = attr

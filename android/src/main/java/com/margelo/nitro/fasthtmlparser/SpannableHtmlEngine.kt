@@ -342,60 +342,16 @@ object SpannableHtmlEngine {
     @JvmStatic
     external fun nativeParseHtmlToJson(
         html: String,
-        baseStyleJson: String,
-        tagsStylesJson: String
+        baseStyleJson: String = "",
+        tagsStylesJson: String = ""
     ): String
 
-    private fun nativeTextStyleToJson(style: NativeTextStyle?): String {
-        if (style == null) return "{}"
-        val obj = JSONObject()
-        style.fontSize?.let { obj.put("fontSize", it) }
-        style.color?.let { obj.put("color", it) }
-        style.backgroundColor?.let { obj.put("backgroundColor", it) }
-        style.fontFamily?.let { obj.put("fontFamily", it) }
-        style.fontWeight?.let { obj.put("fontWeight", it) }
-        style.fontStyle?.let { obj.put("fontStyle", it) }
-        style.lineHeight?.let { obj.put("lineHeight", it) }
-        style.letterSpacing?.let { obj.put("letterSpacing", it) }
-        style.textAlign?.let { obj.put("textAlign", it) }
-        style.textTransform?.let { obj.put("textTransform", it) }
-        style.textIndent?.let { obj.put("textIndent", it) }
-        style.textDecorationLine?.let { obj.put("textDecorationLine", it) }
-        style.textDecorationColor?.let { obj.put("textDecorationColor", it) }
-        style.textDecorationStyle?.let { obj.put("textDecorationStyle", it) }
-        style.opacity?.let { obj.put("opacity", it) }
-        style.margin?.let { obj.put("margin", it) }
-        style.marginVertical?.let { obj.put("marginVertical", it) }
-        style.marginHorizontal?.let { obj.put("marginHorizontal", it) }
-        style.marginTop?.let { obj.put("marginTop", it) }
-        style.marginBottom?.let { obj.put("marginBottom", it) }
-        style.marginLeft?.let { obj.put("marginLeft", it) }
-        style.marginRight?.let { obj.put("marginRight", it) }
-        style.padding?.let { obj.put("padding", it) }
-        style.paddingVertical?.let { obj.put("paddingVertical", it) }
-        style.paddingHorizontal?.let { obj.put("paddingHorizontal", it) }
-        style.paddingTop?.let { obj.put("paddingTop", it) }
-        style.paddingBottom?.let { obj.put("paddingBottom", it) }
-        style.paddingLeft?.let { obj.put("paddingLeft", it) }
-        style.paddingRight?.let { obj.put("paddingRight", it) }
-        style.borderWidth?.let { obj.put("borderWidth", it) }
-        style.borderColor?.let { obj.put("borderColor", it) }
-        style.borderRadius?.let { obj.put("borderRadius", it) }
-        style.borderLeftColor?.let { obj.put("borderLeftColor", it) }
-        style.borderLeftWidth?.let { obj.put("borderLeftWidth", it) }
-        style.fontFeatureSettings?.let { obj.put("fontFeatureSettings", it) }
-        return obj.toString()
-    }
-
-    private fun tagsStylesToJson(styles: Map<String, NativeTextStyle>?): String {
-        if (styles == null) return "{}"
-        val obj = JSONObject()
-        for ((k, v) in styles) {
-            val sub = JSONObject(nativeTextStyleToJson(v))
-            obj.put(k, sub)
-        }
-        return obj.toString()
-    }
+    @JvmStatic
+    external fun nativeParseAstIdToJson(
+        astId: String,
+        baseStyleJson: String = "",
+        tagsStylesJson: String = ""
+    ): String
 
     private fun parseColor(hex: String?): Int? {
         if (hex.isNullOrEmpty()) return null
@@ -588,15 +544,22 @@ object SpannableHtmlEngine {
     }
 
     fun parseJson(
-        html: String,
-        baseStyle: NativeTextStyle? = null,
-        tagsStyles: Map<String, NativeTextStyle>? = null
+        astId: String? = null,
+        html: String? = null
     ): JSONArray {
-        if (html.isEmpty()) return JSONArray()
-        val baseJson = nativeTextStyleToJson(baseStyle)
-        val tagsJson = tagsStylesToJson(tagsStyles)
         val jsonStr = try {
-            nativeParseHtmlToJson(html, baseJson, tagsJson)
+            if (!astId.isNullOrEmpty()) {
+                val res = nativeParseAstIdToJson(astId, "", "")
+                if (res != "[]" || html.isNullOrEmpty()) {
+                    res
+                } else {
+                    nativeParseHtmlToJson(html, "", "")
+                }
+            } else if (!html.isNullOrEmpty()) {
+                nativeParseHtmlToJson(html, "", "")
+            } else {
+                "[]"
+            }
         } catch (_: Exception) {
             "[]"
         }
@@ -908,12 +871,11 @@ object SpannableHtmlEngine {
 
     fun buildSpannable(
         context: Context,
-        html: String,
-        baseStyle: NativeTextStyle? = null,
-        tagsStyles: Map<String, NativeTextStyle>? = null,
+        astId: String? = null,
+        html: String? = null,
         onLinkPress: ((url: String) -> Unit)? = null
     ): CharSequence {
-        val blocks = parseJson(html, baseStyle, tagsStyles)
+        val blocks = parseJson(astId = astId, html = html)
         return buildSpannableFromBlocks(context, blocks, onLinkPress)
     }
 }

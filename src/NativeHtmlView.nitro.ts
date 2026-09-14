@@ -43,9 +43,7 @@ export interface NativeTextStyle {
 }
 
 export interface NativeHtmlViewProps extends HybridViewProps {
-  html?: string;
-  baseStyle?: NativeTextStyle;
-  tagsStyles?: Record<string, NativeTextStyle>;
+  astId?: string;
   selectable?: boolean;
   onLinkPress?: (url: string) => void;
   onContentSizeChange?: (height: number) => void;

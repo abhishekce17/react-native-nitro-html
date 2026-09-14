@@ -8,6 +8,7 @@
 #include "HybridTableRowSpec.hpp"
 #include "HybridTableCellSpec.hpp"
 #include "HybridDefinitionItemSpec.hpp"
+#include "HtmlLayoutMeasurement.hpp"
 
 #include <NitroModules/Null.hpp>
 #include <NitroModules/Promise.hpp>
@@ -315,12 +316,63 @@ public:
         const std::string& tagsStylesJson = ""
     );
 
-    // Dynamic C++ Lexbor height calculation for Fabric Yoga layout pass using device typography metrics
-    double calculateHtmlHeight(const std::string& html, double width, double baseFontSize, double baseLineHeight, double fontScale) override;
-    static float calculateHtmlHeight(const std::string& html, float width, float baseFontSize, float baseLineHeight, float fontScale);
+    // Dynamic C++ Lexbor layout measurement & AST pre-styling for Fabric Yoga layout pass
+    HtmlLayoutMeasurement calculateHtmlLayout(
+        const std::string& html,
+        double width,
+        const std::optional<NativeTextStyle>& baseStyle,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles,
+        std::optional<double> fontScale
+    ) override;
+    std::shared_ptr<Promise<HtmlLayoutMeasurement>> calculateHtmlLayoutAsync(
+        const std::string& html,
+        double width,
+        const std::optional<NativeTextStyle>& baseStyle,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles,
+        std::optional<double> fontScale
+    ) override;
+    static HtmlLayoutMeasurement calculateHtmlLayout(
+        const std::string& html,
+        float width,
+        const std::optional<NativeTextStyle>& baseStyle = std::nullopt,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles = std::nullopt,
+        float fontScale = 1.0f
+    );
 
     // Normalizes HTML via compiled C++ Lexbor
     std::string normalizeHtml(const std::string& html) override;
+
+    // Generates deterministic AST cache identifier from HTML and styles
+    std::string getAstId(
+        const std::string& html,
+        const std::optional<NativeTextStyle>& baseStyle,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
+    ) override;
+    static std::string generateAstId(
+        const std::string& html,
+        const std::optional<NativeTextStyle>& baseStyle = std::nullopt,
+        const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles = std::nullopt
+    );
+
+    // Stores a parsed article into C++ memory buffer and returns its astId
+    std::string storeAst(const std::shared_ptr<HybridParsedArticleSpec>& article) override;
+    static std::string storeAstInternal(const std::shared_ptr<HybridParsedArticle>& article);
+    static void storeAstWithId(const std::string& astId, const std::shared_ptr<HybridParsedArticle>& article);
+
+    // Retrieves a parsed article from C++ memory buffer by astId
+    std::variant<std::shared_ptr<HybridParsedArticleSpec>, NullType> getAst(const std::string& astId) override;
+    static std::shared_ptr<HybridParsedArticle> getAstFromBuffer(const std::string& astId);
+
+    // Clears all entries from the C++ AST memory buffer
+    void clearAstCache() override;
+    static void clearAstBuffer();
+
+    // Serializes cached AST directly to JSON by astId
+    static std::string parseAstIdToJson(
+        const std::string& astId,
+        const std::string& baseStyleJson = "",
+        const std::string& tagsStylesJson = ""
+    );
 };
 
 } // namespace margelo::nitro::fasthtmlparser

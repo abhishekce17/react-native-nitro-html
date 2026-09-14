@@ -14,6 +14,12 @@ NS_ASSUME_NONNULL_BEGIN
                                            tagsStyles:(nullable NSDictionary<NSString *, NSDictionary<NSString *, id> *> *)tagsStyles
                                        containerWidth:(CGFloat)containerWidth;
 
++ (NSAttributedString *)buildAttributedStringFromAstId:(nullable NSString *)astId
+                                              fallbackHtml:(nullable NSString *)html
+                                                 baseStyle:(nullable NSDictionary<NSString *, id> *)baseStyle
+                                                tagsStyles:(nullable NSDictionary<NSString *, NSDictionary<NSString *, id> *> *)tagsStyles
+                                            containerWidth:(CGFloat)containerWidth;
+
 + (void)setImageAspectRatio:(CGFloat)aspect forUrl:(NSString *)url;
 + (CGFloat)imageAspectRatioForUrl:(NSString *)url;
 

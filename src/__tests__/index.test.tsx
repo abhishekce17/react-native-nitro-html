@@ -266,6 +266,9 @@ jest.mock('react-native-nitro-modules', () => {
     return blocks;
   }
 
+  const mockAstBuffer = new Map<string, any>();
+  let mockAstCounter = 0;
+
   return {
     NitroModules: {
       createHybridObject: jest.fn(() => ({
@@ -288,21 +291,94 @@ jest.mock('react-native-nitro-modules', () => {
         normalizeHtml: jest.fn((html: string) =>
           html ? `<html><body>${html}</body></html>` : ''
         ),
+        calculateHtmlLayout: jest.fn(
+          (
+            html: string,
+            _width: number,
+            baseStyle?: any,
+            tagsStyles?: any,
+            fontScale: number = 1.0
+          ) => {
+            if (!html) return { height: 0, astId: '' };
+            const baseFs = baseStyle?.fontSize || 16;
+            const effectiveFs = baseFs * (fontScale > 0 ? fontScale : 1);
+            const height = Math.max(effectiveFs, 24);
+            let hash = 0;
+            const str = `${html}|${JSON.stringify(baseStyle || {})}|${JSON.stringify(tagsStyles || {})}`;
+            for (let i = 0; i < str.length; i++) {
+              // eslint-disable-next-line no-bitwise
+              hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+            }
+            const astId = `ast_${hash.toString(16).padStart(16, '0')}`;
+            return { height, astId };
+          }
+        ),
+        calculateHtmlLayoutAsync: jest.fn(
+          async (
+            html: string,
+            _width: number,
+            baseStyle?: any,
+            tagsStyles?: any,
+            fontScale: number = 1.0
+          ) => {
+            if (!html) return { height: 0, astId: '' };
+            const baseFs = baseStyle?.fontSize || 16;
+            const effectiveFs = baseFs * (fontScale > 0 ? fontScale : 1);
+            const height = Math.max(effectiveFs, 24);
+            let hash = 0;
+            const str = `${html}|${JSON.stringify(baseStyle || {})}|${JSON.stringify(tagsStyles || {})}`;
+            for (let i = 0; i < str.length; i++) {
+              // eslint-disable-next-line no-bitwise
+              hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+            }
+            const astId = `ast_${hash.toString(16).padStart(16, '0')}`;
+            return { height, astId };
+          }
+        ),
         calculateHtmlHeight: jest.fn(
           (
             html: string,
             _width: number,
-            baseFontSize: number,
-            _baseLineHeight: number,
-            fontScale: number
+            baseStyle?: any,
+            tagsStyles?: any,
+            fontScale: number = 1.0
           ) => {
-            if (!html) return 0;
-            const effectiveFs =
-              (baseFontSize > 0 ? baseFontSize : 16) *
-              (fontScale > 0 ? fontScale : 1);
-            return Math.max(effectiveFs, 24);
+            if (!html) return { height: 0, astId: '' };
+            const baseFs = baseStyle?.fontSize || 16;
+            const effectiveFs = baseFs * (fontScale > 0 ? fontScale : 1);
+            const height = Math.max(effectiveFs, 24);
+            let hash = 0;
+            const str = `${html}|${JSON.stringify(baseStyle || {})}|${JSON.stringify(tagsStyles || {})}`;
+            for (let i = 0; i < str.length; i++) {
+              // eslint-disable-next-line no-bitwise
+              hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+            }
+            const astId = `ast_${hash.toString(16).padStart(16, '0')}`;
+            return { height, astId };
           }
         ),
+        getAstId: jest.fn((html: string, baseStyle?: any, tagsStyles?: any) => {
+          if (!html) return '';
+          let hash = 0;
+          const str = `${html}|${JSON.stringify(baseStyle || {})}|${JSON.stringify(tagsStyles || {})}`;
+          for (let i = 0; i < str.length; i++) {
+            // eslint-disable-next-line no-bitwise
+            hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+          }
+          return `ast_${hash.toString(16).padStart(16, '0')}`;
+        }),
+        storeAst: jest.fn((article: any) => {
+          if (!article) return '';
+          const id = `ast_dyn_${(++mockAstCounter).toString(16).padStart(16, '0')}`;
+          mockAstBuffer.set(id, article);
+          return id;
+        }),
+        getAst: jest.fn((astId: string) => {
+          return mockAstBuffer.get(astId) || null;
+        }),
+        clearAstCache: jest.fn(() => {
+          mockAstBuffer.clear();
+        }),
       })),
     },
     getHostComponent: jest.fn(() => 'NativeHtmlView'),
@@ -326,7 +402,12 @@ import {
   parseHTML,
   parseHTMLAsync,
   normalizeHTML,
-  calculateHTMLHeight,
+  calculateHTMLLayout,
+  calculateHTMLLayoutAsync,
+  getAstId,
+  storeAst,
+  getAst,
+  clearAstCache,
 } from '../index';
 
 describe('1. Module Exports & Core APIs', () => {
@@ -335,11 +416,16 @@ describe('1. Module Exports & Core APIs', () => {
     expect(NativeHtmlView).toBeDefined();
   });
 
-  it('exports core parser methods', () => {
+  it('exports core parser and AST buffer methods', () => {
     expect(typeof parseHTML).toBe('function');
     expect(typeof parseHTMLAsync).toBe('function');
     expect(typeof normalizeHTML).toBe('function');
-    expect(typeof calculateHTMLHeight).toBe('function');
+    expect(typeof calculateHTMLLayout).toBe('function');
+    expect(typeof calculateHTMLLayoutAsync).toBe('function');
+    expect(typeof getAstId).toBe('function');
+    expect(typeof storeAst).toBe('function');
+    expect(typeof getAst).toBe('function');
+    expect(typeof clearAstCache).toBe('function');
   });
 
   it('exports all 10 AST helper wrappers', () => {
@@ -393,33 +479,90 @@ describe('2. Comprehensive Testing of Utility Functions', () => {
     });
   });
 
-  describe('calculateHTMLHeight', () => {
-    it('calculates estimated height for layout pass', () => {
-      const height = calculateHTMLHeight(
+  describe('calculateHTMLLayout & calculateHTMLLayoutAsync', () => {
+    it('calculates estimated height and returns astId for layout pass', () => {
+      const measurement = calculateHTMLLayout(
         '<p>Test Paragraph</p>',
         375,
-        16,
-        24,
+        { fontSize: 16, lineHeight: 24 },
+        { h1: { fontSize: 32 } },
         1.0
       );
-      expect(height).toBeGreaterThan(0);
+      expect(measurement.height).toBeGreaterThan(0);
+      expect(measurement.astId).toMatch(/^ast_/);
     });
 
-    it('returns 0 for empty HTML string', () => {
-      const height = calculateHTMLHeight('', 375, 16, 24, 1.0);
-      expect(height).toBe(0);
+    it('calculates estimated height and returns astId asynchronously', async () => {
+      const measurement = await calculateHTMLLayoutAsync(
+        '<p>Test Paragraph Async</p>',
+        375,
+        { fontSize: 16, lineHeight: 24 },
+        { h1: { fontSize: 32 } },
+        1.0
+      );
+      expect(measurement.height).toBeGreaterThan(0);
+      expect(measurement.astId).toMatch(/^ast_/);
+    });
+
+    it('returns 0 height and empty astId for empty HTML string', () => {
+      const measurement = calculateHTMLLayout('', 375);
+      expect(measurement.height).toBe(0);
+      expect(measurement.astId).toBe('');
     });
 
     it('scales with custom fontScale and baseFontSize', () => {
-      const standardHeight = calculateHTMLHeight(
+      const standard = calculateHTMLLayout(
         '<p>Text</p>',
         375,
-        16,
-        24,
+        { fontSize: 16 },
+        undefined,
         1.0
       );
-      const scaledHeight = calculateHTMLHeight('<p>Text</p>', 375, 24, 32, 1.5);
-      expect(scaledHeight).toBeGreaterThanOrEqual(standardHeight);
+      const scaled = calculateHTMLLayout(
+        '<p>Text</p>',
+        375,
+        { fontSize: 24 },
+        undefined,
+        1.5
+      );
+      expect(scaled.height).toBeGreaterThanOrEqual(standard.height);
+      expect(scaled.astId).not.toBe('');
+    });
+
+    it('produces distinct astIds for different styles', () => {
+      const id1 = getAstId('<p>Text</p>', { color: '#ff0000' });
+      const id2 = getAstId('<p>Text</p>', { color: '#00ff00' });
+      expect(id1).not.toBe(id2);
+    });
+  });
+
+  describe('AST Memory Buffer & Zero-Copy Helpers', () => {
+    it('getAstId returns deterministic IDs for identical HTML', () => {
+      const id1 = getAstId('<p>Consistent HTML content</p>');
+      const id2 = getAstId('<p>Consistent HTML content</p>');
+      expect(id1).toBeTruthy();
+      expect(id1).toBe(id2);
+      expect(getAstId('')).toBe('');
+    });
+
+    it('storeAst stores a parsed article into C++ buffer and returns astId', () => {
+      const article = parseHTML('<p>Article to store in C++ buffer</p>');
+      expect(article).not.toBeNull();
+      const astId = storeAst(article!);
+      expect(astId).toBeTruthy();
+      expect(astId).toMatch(/^ast_/);
+
+      const retrieved = getAst(astId);
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.length).toBe(article?.length);
+    });
+
+    it('clearAstCache clears buffer entries', () => {
+      const article = parseHTML('<p>Temporary article</p>');
+      const astId = storeAst(article!);
+      expect(getAst(astId)).not.toBeNull();
+      clearAstCache();
+      expect(getAst(astId)).toBeNull();
     });
   });
 

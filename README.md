@@ -43,7 +43,9 @@ Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to
   - [`parseHTML(html)`](#1-parsehtmlhtml)
   - [`parseHTMLAsync(html)`](#2-parsehtmlasynchtml)
   - [`normalizeHTML(html)`](#3-normalizehtmlhtml)
-  - [`calculateHTMLHeight(html, width, baseFontSize, baseLineHeight, fontScale)`](#4-calculatehtmlheighthtml-width-basefontsize-baselineheight-fontscale)
+  - [`calculateHTMLLayout(html, width, baseStyle, tagsStyles, fontScale)`](#4-calculatehtmllayouthtml-width-basestyle-tagsstyles-fontscale)
+  - [`calculateHTMLLayoutAsync(html, width, baseStyle, tagsStyles, fontScale)`](#5-calculatehtmllayoutasynchtml-width-basestyle-tagsstyles-fontscale)
+  - [AST Memory Buffer & Cache Management](#6-ast-memory-buffer--cache-management)
 - [🗂️ Zero-Dependency AST Wrappers](#-zero-dependency-ast-wrappers)
   - [`getBlocks(article)`](#getblocksarticle)
   - [`getChildren(node)`](#getchildrennode)
@@ -74,16 +76,25 @@ Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to
 
 ## ⚡ Empirical Benchmarks
 
-Measured on native C++ (Lexbor) engine across standard payload tiers:
+### Standard Payload Tiers (Native C++ Lexbor Core on Apple Silicon)
 
-| Payload Tier | Exact Size  | AST Blocks     | Parse Time      | 1-Pass JSON Time | Total Time      | Sustained Throughput |
-| :----------- | :---------- | :------------- | :-------------- | :--------------- | :-------------- | :------------------- |
-| **1 KB**     | 1.13 KB     | 6 blocks       | **0.005 ms**    | 0.003 ms         | **0.008 ms**    | 130.99 MB/s          |
-| **10 KB**    | 10.18 KB    | 55 blocks      | **0.038 ms**    | 0.028 ms         | **0.066 ms**    | 150.58 MB/s          |
-| **100 KB**   | 100.10 KB   | 541 blocks     | **0.377 ms**    | 0.269 ms         | **0.646 ms**    | 151.27 MB/s          |
-| **500 KB**   | 500.08 KB   | 2,697 blocks   | **1.897 ms**    | 1.343 ms         | **3.241 ms**    | 150.70 MB/s          |
-| **1 MB**     | 1,024.46 KB | 5,506 blocks   | **3.908 ms**    | 2.824 ms         | **6.732 ms**    | 148.60 MB/s          |
-| **5 MB**     | 5,120.10 KB | 27,439 blocks  | **19.684 ms**   | 13.966 ms        | **33.650 ms**   | 148.59 MB/s          |
+| Payload Tier | Exact Size | AST Blocks | Parse Time (ms) | Sustained Throughput |
+| :----------- | :--------- | :--------- | :-------------- | :------------------- |
+| **1 KB**     | 0.76 KB    | 13 blocks  | **0.0157 ms**   | 47.22 MB/s           |
+| **10 KB**    | 9.80 KB    | 175 blocks | **0.0866 ms**   | 110.50 MB/s          |
+| **100 KB**   | 99.91 KB   | 1,789 blocks | **0.5224 ms** | 186.75 MB/s          |
+| **500 KB**   | 499.85 KB  | 8,953 blocks | **2.4074 ms** | 202.76 MB/s          |
+| **1 MB**     | 1,023.73 KB | 18,337 blocks | **4.9357 ms** | 202.55 MB/s        |
+| **5 MB**     | 5,119.97 KB | 91,711 blocks | **25.0810 ms** | 199.35 MB/s       |
+
+### Long-Form Editorial & Stress Test Benchmarks
+
+| Article Scale | Payload Size | AST Blocks | Parse Time (ms) | Throughput |
+| :------------ | :----------- | :--------- | :-------------- | :--------- |
+| **2,500 words (~10m read)** | 20.26 KB | 174 blocks | **0.0458 ms** | 431.92 MB/s |
+| **5,000 words (~20m read)** | 41.11 KB | 353 blocks | **0.0894 ms** | 449.22 MB/s |
+| **10,000 words (~45m read)** | 82.74 KB | 709 blocks | **0.1812 ms** | 446.00 MB/s |
+| **20,000 words (~90m read)** | 165.80 KB | 1,420 blocks | **0.3596 ms** | 450.28 MB/s |
 
 ---
 
@@ -534,19 +545,62 @@ const cleaned: string = normalizeHTML('<div><p>Unclosed paragraph<b>bold');
 console.log(cleaned); // "<div><p>Unclosed paragraph<b>bold</b></p></div>"
 ```
 
-### 4. `calculateHTMLHeight(html, width, baseFontSize, baseLineHeight, fontScale)`
-Calculates estimated native layout height for an HTML payload before rendering, ideal for virtualized list placeholders.
+### 4. `calculateHTMLLayout(html, width, baseStyle?, tagsStyles?, fontScale?)`
+Synchronously evaluates document styles and calculates estimated native layout height in C++ for Frame 0, caching the pre-styled AST in the C++ memory buffer. Returns `{ height: number, astId: string }`.
 ```typescript
-import { calculateHTMLHeight } from 'react-native-nitro-html';
+import { calculateHTMLLayout, type HtmlLayoutMeasurement } from 'react-native-nitro-html';
 
-const estimatedHeight: number = calculateHTMLHeight(
-  '<p>Some long text...</p>',
+const layout: HtmlLayoutMeasurement = calculateHTMLLayout(
+  '<h1>Title</h1><p>Some long text...</p>',
   360, // Container width (dp)
-  16,  // Base font size
-  24,  // Base line height
+  { fontSize: 16, lineHeight: 24 }, // Base style
+  { h1: { fontSize: 28, color: '#0f172a' } }, // Tags styles
   1.0  // Font scale factor
 );
-console.log('Estimated native height:', estimatedHeight);
+
+console.log('Estimated native height:', layout.height);
+console.log('Pre-styled AST Token ID:', layout.astId); // e.g. "ast_4e81a7b..."
+```
+
+### 5. `calculateHTMLLayoutAsync(html, width, baseStyle?, tagsStyles?, fontScale?)`
+Asynchronously calculates estimated native layout height on a background C++ worker thread pool via Promises, eliminating JS main thread lockups on massive HTML payloads.
+```typescript
+import { calculateHTMLLayoutAsync, type HtmlLayoutMeasurement } from 'react-native-nitro-html';
+
+async function measureMassiveArticle(rawHtml: string) {
+  const layout: HtmlLayoutMeasurement = await calculateHTMLLayoutAsync(
+    rawHtml,
+    375,
+    { fontSize: 16 },
+    { h1: { fontSize: 24 } }
+  );
+  console.log('Async measured height:', layout.height, 'astId:', layout.astId);
+}
+```
+
+### 6. AST Memory Buffer & Cache Management
+Direct low-level utilities for managing the C++ thread-safe LRU AST memory buffer (`sAstBufferMap`):
+```typescript
+import {
+  getAstId,
+  storeAst,
+  getAst,
+  clearAstCache,
+  parseHTML,
+} from 'react-native-nitro-html';
+
+// 1. Get deterministic 64-bit FNV-1a hash key for HTML & style combinations
+const astId = getAstId('<p>Article</p>', { fontSize: 16 });
+
+// 2. Store pre-parsed article into C++ buffer
+const article = parseHTML('<p>Article</p>');
+const storedId = storeAst(article!);
+
+// 3. Retrieve pre-parsed article from C++ buffer in O(1)
+const retrievedArticle = getAst(storedId);
+
+// 4. Clear all cached AST entries from C++ memory
+clearAstCache();
 ```
 
 ---

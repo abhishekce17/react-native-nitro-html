@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,17 +6,27 @@ import {
   PixelRatio,
 } from 'react-native';
 import { getHostComponent, callback } from 'react-native-nitro-modules';
-import { parseHTML, calculateHTMLHeight } from '../parser';
+import {
+  parseHTML,
+  parseHTMLAsync,
+  calculateHTMLLayout,
+  calculateHTMLLayoutAsync,
+  storeAst,
+} from '../parser';
 import { getBlocks } from '../wrappers';
 import type {
   NativeHtmlViewProps,
   NativeHtmlViewMethods,
   NativeTextStyle,
 } from '../NativeHtmlView.nitro';
+import type {
+  ParsedArticle,
+  HtmlLayoutMeasurement,
+} from '../FastHtmlParser.nitro';
 import type { FastHtmlViewProps } from './types';
 
 // ─── NativeHtmlView ──────────────────────────────────────────────────────────
-// The single Fabric native view that receives an HTML string and renders it
+// The single Fabric native view that receives an HTML string / astId and renders it
 // 100% natively (UITextView + TextKit2 on iOS, TextView + Spannable on Android).
 
 export const NativeHtmlView = getHostComponent<
@@ -27,9 +37,7 @@ export const NativeHtmlView = getHostComponent<
   bubblingEventTypes: {},
   directEventTypes: {},
   validAttributes: {
-    html: true,
-    baseStyle: true,
-    tagsStyles: true,
+    astId: true,
     selectable: true,
     onLinkPress: true,
     onContentSizeChange: true,
@@ -57,8 +65,6 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentViewImpl({
   selectable,
   onLinkPress,
   windowWidth,
-  baseFontSize,
-  baseLineHeight,
   fontScale,
 }: {
   html: string;
@@ -67,23 +73,15 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentViewImpl({
   selectable?: boolean;
   onLinkPress?: (url: string) => void;
   windowWidth: number;
-  baseFontSize: number;
-  baseLineHeight: number;
   fontScale: number;
 }) {
   const [measuredHeight, setMeasuredHeight] = useState(0);
-  const initialHeight = React.useMemo(
+  const measurement = React.useMemo(
     () =>
-      calculateHTMLHeight(
-        html,
-        windowWidth,
-        baseFontSize,
-        baseLineHeight,
-        fontScale
-      ),
-    [html, windowWidth, baseFontSize, baseLineHeight, fontScale]
+      calculateHTMLLayout(html, windowWidth, baseStyle, tagsStyles, fontScale),
+    [html, windowWidth, baseStyle, tagsStyles, fontScale]
   );
-  const height = measuredHeight > 0 ? measuredHeight : initialHeight;
+  const height = measuredHeight > 0 ? measuredHeight : measurement.height;
   const handleContentSizeChange = React.useCallback((newH: number) => {
     setMeasuredHeight((prev) => (Math.abs(prev - newH) > 1 ? newH : prev));
   }, []);
@@ -98,9 +96,7 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentViewImpl({
 
   return (
     <NativeHtmlView
-      html={html}
-      baseStyle={baseStyle ?? EMPTY_STYLE}
-      tagsStyles={tagsStyles ?? EMPTY_TAGS_STYLES}
+      astId={measurement.astId}
       selectable={selectable}
       onLinkPress={wrappedOnLinkPress}
       onContentSizeChange={wrappedOnContentSizeChange}
@@ -114,8 +110,8 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentViewImpl({
 // Architecture:
 //
 //  ┌─ Fast Path (default, no renderers prop) ──────────────────────────────┐
-//  │  1. JSI synchronous C++ calculateHTMLHeight() for Frame 0 layout.    │
-//  │  2. Dynamic onContentSizeChange syncs 100% exact native measurement.  │
+//  │  1. JSI synchronous or C++ worker async calculateHTMLLayout() buffers.│
+//  │  2. Passes lightweight astId token to NativeHtmlView.                 │
 //  │  100% Native Fabric Layer. Zero layout shift. Zero clipping.          │
 //  └───────────────────────────────────────────────────────────────────────┘
 //
@@ -127,6 +123,7 @@ const NativeHtmlSegmentView = React.memo(function NativeHtmlSegmentViewImpl({
 
 export function FastHtmlView({
   html,
+  mode = 'sync',
   parsedAst,
   baseStyle,
   tagsStyles,
@@ -138,9 +135,6 @@ export function FastHtmlView({
 }: FastHtmlViewProps): React.ReactElement | null {
   const { width: windowWidth } = useWindowDimensions();
   const fontScale = PixelRatio.getFontScale();
-
-  const baseFontSize = (baseStyle?.fontSize as number) ?? 0;
-  const baseLineHeight = (baseStyle?.lineHeight as number) ?? 0;
 
   const nativeBaseStyle: NativeTextStyle = React.useMemo(() => {
     if (fontFeatureSettings) {
@@ -162,22 +156,93 @@ export function FastHtmlView({
   );
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
+  const [asyncMeasurement, setAsyncMeasurement] =
+    useState<HtmlLayoutMeasurement>({ height: 0, astId: '' });
+  const [asyncArticle, setAsyncArticle] = useState<ParsedArticle | null>(null);
 
-  const initialHeight = React.useMemo(
-    () =>
-      html
-        ? calculateHTMLHeight(
-            html,
-            windowWidth,
-            baseFontSize,
-            baseLineHeight,
-            fontScale
-          )
-        : 0,
-    [html, windowWidth, baseFontSize, baseLineHeight, fontScale]
-  );
+  useEffect(() => {
+    if (mode !== 'async' || !html || parsedAst) return;
+    let isMounted = true;
+    calculateHTMLLayoutAsync(
+      html,
+      windowWidth,
+      nativeBaseStyle,
+      nativeTagsStyles,
+      fontScale
+    )
+      .then((m) => {
+        if (isMounted) {
+          setAsyncMeasurement(m);
+        }
+      })
+      .catch(() => {});
 
-  const height = measuredHeight > 0 ? measuredHeight : initialHeight;
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    mode,
+    html,
+    parsedAst,
+    windowWidth,
+    nativeBaseStyle,
+    nativeTagsStyles,
+    fontScale,
+  ]);
+
+  useEffect(() => {
+    if (
+      mode !== 'async' ||
+      !html ||
+      parsedAst ||
+      !hasCustomRenderers(renderers)
+    ) {
+      return;
+    }
+    let isMounted = true;
+    parseHTMLAsync(html)
+      .then((art) => {
+        if (isMounted) setAsyncArticle(art);
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mode, html, parsedAst, renderers]);
+
+  const syncMeasurement = React.useMemo(() => {
+    if (mode !== 'sync') return null;
+    if (parsedAst) {
+      return { height: 0, astId: storeAst(parsedAst) };
+    }
+    if (html) {
+      return calculateHTMLLayout(
+        html,
+        windowWidth,
+        nativeBaseStyle,
+        nativeTagsStyles,
+        fontScale
+      );
+    }
+    return { height: 0, astId: '' };
+  }, [
+    mode,
+    html,
+    parsedAst,
+    windowWidth,
+    nativeBaseStyle,
+    nativeTagsStyles,
+    fontScale,
+  ]);
+
+  const measurement =
+    mode === 'async'
+      ? asyncMeasurement
+      : (syncMeasurement ?? { height: 0, astId: '' });
+
+  const height = measuredHeight > 0 ? measuredHeight : measurement.height;
+  const astId = measurement.astId || undefined;
 
   const handleContentSizeChange = React.useCallback((newH: number) => {
     setMeasuredHeight((prev) => (Math.abs(prev - newH) > 1 ? newH : prev));
@@ -188,13 +253,14 @@ export function FastHtmlView({
     [handleContentSizeChange]
   );
 
-  // ── Fast Path (100% Native Fabric Layer with Synchronous C++ JSI Height) ───
+  // ── Fast Path (100% Native Fabric Layer with C++ JSI / Worker Height) ───────
   if (!hasCustomRenderers(renderers)) {
+    if (!astId) {
+      return <View style={[styles.container, style]} />;
+    }
     return (
       <NativeHtmlView
-        html={html || ''}
-        baseStyle={nativeBaseStyle}
-        tagsStyles={nativeTagsStyles}
+        astId={astId}
         selectable={selectable}
         onLinkPress={wrappedOnLinkPress}
         onContentSizeChange={wrappedOnContentSizeChange}
@@ -204,8 +270,13 @@ export function FastHtmlView({
   }
 
   // ── Custom Renderer Path (Direct C++ Lexbor Call + Segment Sizing) ──────────
-  const article = parsedAst || (html ? parseHTML(html) : null);
-  if (!article || !renderers) return null;
+  const article =
+    parsedAst ||
+    (mode === 'async' ? asyncArticle : html ? parseHTML(html) : null);
+
+  if (!article || !renderers) {
+    return <View style={[styles.container, style]} />;
+  }
 
   const blocks = getBlocks(article);
   const segments: React.ReactNode[] = [];
@@ -223,8 +294,6 @@ export function FastHtmlView({
           selectable={selectable}
           onLinkPress={onLinkPress}
           windowWidth={windowWidth}
-          baseFontSize={baseFontSize}
-          baseLineHeight={baseLineHeight}
           fontScale={fontScale}
         />
       );

@@ -1849,15 +1849,15 @@ static void walkDomNode(
     }
 }
 
-// ── Thread-Safe In-Memory LRU AST Cache (Eliminates Duplicate HTML Parsing) ──
-struct AstCacheKey {
-    std::string html;
-    std::string styleSignature;
-
-    bool operator==(const AstCacheKey& other) const {
-        return html == other.html && styleSignature == other.styleSignature;
+// ── Thread-Safe In-Memory LRU AST Cache & Memory Buffer ──────────────────────
+static uint64_t fnv1a64(const std::string& str) {
+    uint64_t hash = 14695981039346656037ULL;
+    for (char c : str) {
+        hash ^= static_cast<uint64_t>(static_cast<unsigned char>(c));
+        hash *= 1099511628211ULL;
     }
-};
+    return hash;
+}
 
 static std::string computeStyleSignature(
     const std::optional<NativeTextStyle>& baseStyle,
@@ -1925,8 +1925,106 @@ static std::string computeStyleSignature(
 }
 
 static std::mutex sAstCacheMutex;
-static std::list<std::pair<AstCacheKey, std::shared_ptr<HybridParsedArticle>>> sAstLruList;
-constexpr size_t MAX_AST_CACHE_SIZE = 16;
+static std::list<std::pair<std::string, std::shared_ptr<HybridParsedArticle>>> sAstBufferLruList;
+static std::unordered_map<std::string, std::list<std::pair<std::string, std::shared_ptr<HybridParsedArticle>>>::iterator> sAstBufferMap;
+static std::atomic<uint64_t> sDynamicAstCounter{0};
+constexpr size_t MAX_AST_BUFFER_SIZE = 128;
+
+std::string HybridFastHtmlParser::generateAstId(
+    const std::string& html,
+    const std::optional<NativeTextStyle>& baseStyle,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
+) {
+    if (html.empty()) return "";
+    std::string sig = computeStyleSignature(baseStyle, tagsStyles);
+    std::string combined = sig.empty() ? html : (html + "||" + sig);
+    uint64_t h = fnv1a64(combined);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "ast_%016llx", static_cast<unsigned long long>(h));
+    return std::string(buf);
+}
+
+std::string HybridFastHtmlParser::getAstId(
+    const std::string& html,
+    const std::optional<NativeTextStyle>& baseStyle,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles
+) {
+    return generateAstId(html, baseStyle, tagsStyles);
+}
+
+void HybridFastHtmlParser::storeAstWithId(const std::string& astId, const std::shared_ptr<HybridParsedArticle>& article) {
+    if (astId.empty() || !article) return;
+    std::lock_guard<std::mutex> lock(sAstCacheMutex);
+    auto it = sAstBufferMap.find(astId);
+    if (it != sAstBufferMap.end()) {
+        it->second->second = article;
+        sAstBufferLruList.splice(sAstBufferLruList.begin(), sAstBufferLruList, it->second);
+        return;
+    }
+    sAstBufferLruList.emplace_front(astId, article);
+    sAstBufferMap[astId] = sAstBufferLruList.begin();
+    if (sAstBufferLruList.size() > MAX_AST_BUFFER_SIZE) {
+        auto last = sAstBufferLruList.end();
+        --last;
+        sAstBufferMap.erase(last->first);
+        sAstBufferLruList.pop_back();
+    }
+}
+
+std::string HybridFastHtmlParser::storeAstInternal(const std::shared_ptr<HybridParsedArticle>& article) {
+    if (!article) return "";
+    uint64_t id = ++sDynamicAstCounter;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "ast_dyn_%016llx", static_cast<unsigned long long>(id));
+    std::string astId(buf);
+    storeAstWithId(astId, article);
+    return astId;
+}
+
+std::string HybridFastHtmlParser::storeAst(const std::shared_ptr<HybridParsedArticleSpec>& articleSpec) {
+    if (!articleSpec) return "";
+    auto article = std::dynamic_pointer_cast<HybridParsedArticle>(articleSpec);
+    if (!article) return "";
+    return storeAstInternal(article);
+}
+
+std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::getAstFromBuffer(const std::string& astId) {
+    if (astId.empty()) return nullptr;
+    std::lock_guard<std::mutex> lock(sAstCacheMutex);
+    auto it = sAstBufferMap.find(astId);
+    if (it != sAstBufferMap.end()) {
+        sAstBufferLruList.splice(sAstBufferLruList.begin(), sAstBufferLruList, it->second);
+        return it->second->second;
+    }
+    return nullptr;
+}
+
+std::variant<std::shared_ptr<HybridParsedArticleSpec>, NullType> HybridFastHtmlParser::getAst(const std::string& astId) {
+    auto article = getAstFromBuffer(astId);
+    if (article) return article;
+    return nullptr;
+}
+
+void HybridFastHtmlParser::clearAstBuffer() {
+    std::lock_guard<std::mutex> lock(sAstCacheMutex);
+    sAstBufferMap.clear();
+    sAstBufferLruList.clear();
+}
+
+void HybridFastHtmlParser::clearAstCache() {
+    clearAstBuffer();
+}
+
+std::string HybridFastHtmlParser::parseAstIdToJson(
+    const std::string& astId,
+    const std::string& /*baseStyleJson*/,
+    const std::string& /*tagsStylesJson*/
+) {
+    if (astId.empty()) return "[]";
+    auto article = getAstFromBuffer(astId);
+    if (!article) return "[]";
+    return articleToJson(article);
+}
 
 // ── parseInternal ─────────────────────────────────────────────────────────────
 std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
@@ -1938,17 +2036,10 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
         return std::make_shared<HybridParsedArticle>();
     }
 
-    std::string styleSig = computeStyleSignature(baseStyle, tagsStyles);
-
-    {
-        std::lock_guard<std::mutex> lock(sAstCacheMutex);
-        for (auto it = sAstLruList.begin(); it != sAstLruList.end(); ++it) {
-            if (it->first.styleSignature == styleSig && it->first.html == html) {
-                // Move accessed item to the front of LRU list (0ms cache hit, 0 allocations)
-                sAstLruList.splice(sAstLruList.begin(), sAstLruList, it);
-                return it->second;
-            }
-        }
+    std::string astId = generateAstId(html, baseStyle, tagsStyles);
+    auto cached = getAstFromBuffer(astId);
+    if (cached) {
+        return cached;
     }
 
     lxb_html_parser_t* parser = lxb_html_parser_create();
@@ -1999,15 +2090,7 @@ std::shared_ptr<HybridParsedArticle> HybridFastHtmlParser::parseInternal(
     lxb_html_parser_destroy(parser);
 
     auto article = std::make_shared<HybridParsedArticle>(std::move(blocks));
-
-    {
-        std::lock_guard<std::mutex> lock(sAstCacheMutex);
-        sAstLruList.emplace_front(AstCacheKey{ html, std::move(styleSig) }, article);
-        if (sAstLruList.size() > MAX_AST_CACHE_SIZE) {
-            sAstLruList.pop_back();
-        }
-    }
-
+    storeAstWithId(astId, article);
     return article;
 }
 
@@ -2343,11 +2426,16 @@ std::string HybridFastHtmlParser::parseHtmlToJson(
 
 // ── estimateHeight (Dynamic C++ Lexbor Layout Measurement) ───────────────────
 float HybridContentBlock::estimateHeight(float width, float baseFontSize, float baseLineHeight, float fontScale) const {
-    float effectiveFontSize = (baseFontSize > 0.0f ? baseFontSize : 16.0f) * (fontScale > 0.0f ? fontScale : 1.0f);
-    float effectiveLineHeight = baseLineHeight > 0.0f
-        ? (baseLineHeight * (fontScale > 0.0f ? fontScale : 1.0f))
-        : (effectiveFontSize * 1.375f);
+    float blockFs = fontSize_ > 0.0f ? static_cast<float>(fontSize_) : (baseFontSize > 0.0f ? baseFontSize : 16.0f);
+    float effectiveFontSize = blockFs * (fontScale > 0.0f ? fontScale : 1.0f);
+    float effectiveLineHeight = lineHeight_ > 0.0f
+        ? (static_cast<float>(lineHeight_) * (fontScale > 0.0f ? fontScale : 1.0f))
+        : (baseLineHeight > 0.0f
+            ? (baseLineHeight * (fontScale > 0.0f ? fontScale : 1.0f))
+            : (effectiveFontSize * 1.375f));
     float proportionalCharWidth = effectiveFontSize * 0.5f;
+    float mt = marginTop_ > 0.0f ? static_cast<float>(marginTop_) : 0.0f;
+    float mb = marginBottom_ > 0.0f ? static_cast<float>(marginBottom_) : 0.0f;
 
     if (type_ == "Heading") {
         float hScale = 1.0f;
@@ -2358,10 +2446,10 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
         else if (level_ == 5) hScale = 0.875f;
         else if (level_ == 6) hScale = 0.85f;
 
-        float hFontSize = effectiveFontSize * hScale;
-        float hLineHeight = hFontSize * 1.25f;
+        float hFontSize = fontSize_ > 0.0f ? effectiveFontSize : (effectiveFontSize * hScale);
+        float hLineHeight = lineHeight_ > 0.0f ? effectiveLineHeight : (hFontSize * 1.25f);
         float hCharWidth = hFontSize * 0.5f;
-        float hMargin = hFontSize;
+        float hMargin = (mt + mb > 0.0f) ? (mt + mb) : hFontSize;
 
         float textLen = 0.0f;
         for (const auto& child : children_) {
@@ -2374,7 +2462,7 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
         return lines * hLineHeight + hMargin;
     }
     if (type_ == "Paragraph") {
-        float paragraphMargin = effectiveFontSize;
+        float paragraphMargin = (mt + mb > 0.0f) ? (mt + mb) : effectiveFontSize;
         float textLen = 0.0f;
         for (const auto& child : children_) {
             textLen += static_cast<float>(child->text_.length());
@@ -2387,7 +2475,7 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
     }
     if (type_ == "List") {
         float bulletIndent = effectiveFontSize;
-        float itemSpacing = effectiveFontSize;
+        float itemSpacing = (mt + mb > 0.0f) ? (mt + mb) : effectiveFontSize;
         float h = 0.0f;
 
         for (const auto& item : items_) {
@@ -2412,37 +2500,49 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
     }
     if (type_ == "CodeBlock") {
         size_t lines = 1;
-        for (char ch : code_) {
-            if (ch == '\n') lines++;
+        for (char c : code_) {
+            if (c == '\n') lines++;
         }
-        float codeFontSize = effectiveFontSize;
-        float codeLineHeight = codeFontSize;
-        float codePadding = effectiveFontSize;
-        return static_cast<float>(lines) * codeLineHeight + (codePadding + codePadding);
+        float verticalPadding = static_cast<float>(paddingTop_ + paddingBottom_);
+        if (verticalPadding <= 0.0f) verticalPadding = effectiveFontSize * 1.5f;
+        float verticalMargin = static_cast<float>(marginTop_ + marginBottom_);
+        return static_cast<float>(lines) * effectiveLineHeight + verticalPadding + verticalMargin;
     }
     if (type_ == "Image" || type_ == "Figure") {
-        float aspectHeight = width * 0.5625f;
-        return std::min(aspectHeight, 240.0f * (fontScale > 0.0f ? fontScale : 1.0f));
+        float aspect = 0.5625f; // Standard 16:9 default aspect ratio
+        float imgHeight = width * aspect;
+        float capHeight = !caption_.empty() ? (effectiveLineHeight + 4.0f) : 0.0f;
+        float verticalMargin = (mt + mb > 0.0f) ? (mt + mb) : 16.0f;
+        return imgHeight + capHeight + verticalMargin;
     }
     if (type_ == "Video" || type_ == "Audio") {
         float aspectHeight = width * 0.5625f;
-        return std::min(aspectHeight, 200.0f * (fontScale > 0.0f ? fontScale : 1.0f));
+        float maxHeight = 200.0f * (fontScale > 0.0f ? fontScale : 1.0f);
+        float verticalMargin = (mt + mb > 0.0f) ? (mt + mb) : 16.0f;
+        return std::min(aspectHeight, maxHeight) + verticalMargin;
     }
     if (type_ == "Separator") {
-        return effectiveFontSize;
+        float hrLineH = 8.0f;
+        float verticalMargin = (mt + mb > 0.0f) ? (mt + mb) : (effectiveFontSize * 2.0f);
+        return hrLineH + verticalMargin;
     }
     if (type_ == "DefinitionList") {
         float itemHeight = effectiveLineHeight + effectiveFontSize;
-        return static_cast<float>(defItems_.size()) * itemHeight + effectiveFontSize;
+        float verticalMargin = (mt + mb > 0.0f) ? (mt + mb) : effectiveFontSize;
+        return static_cast<float>(defItems_.size()) * itemHeight + verticalMargin;
     }
-    if (type_ == "Blockquote" || type_ == "Quote") {
-        float quoteIndent = effectiveFontSize;
-        float quotePadding = effectiveFontSize;
-        float h = quotePadding;
-        for (const auto& qc : quoteChildren_) {
-            h += qc->estimateHeight(std::max(1.0f, width - quoteIndent), baseFontSize, baseLineHeight, fontScale);
+    if (type_ == "Quote" || type_ == "Blockquote") {
+        float qLeft = static_cast<float>(marginLeft_ + paddingLeft_);
+        float quoteIndent = qLeft > 0.0f ? qLeft : 16.0f;
+        float verticalPadding = static_cast<float>(paddingTop_ + paddingBottom_);
+        if (verticalPadding <= 0.0f) verticalPadding = effectiveFontSize * 0.75f;
+        float verticalMargin = static_cast<float>(marginTop_ + marginBottom_);
+        float h = verticalPadding + verticalMargin;
+        float childWidth = std::max(1.0f, width - quoteIndent);
+        for (const auto& qBlock : quoteChildren_) {
+            h += qBlock->estimateHeight(childWidth, baseFontSize, baseLineHeight, fontScale);
         }
-        return h + quotePadding;
+        return h;
     }
     return effectiveLineHeight + effectiveFontSize;
 }
@@ -2456,28 +2556,71 @@ float HybridParsedArticle::estimateHeight(float width, float baseFontSize, float
     return std::max(effectiveFontSize, total);
 }
 
-double HybridFastHtmlParser::calculateHtmlHeight(const std::string& html, double width, double baseFontSize, double baseLineHeight, double fontScale) {
-    return static_cast<double>(calculateHtmlHeight(
+HtmlLayoutMeasurement HybridFastHtmlParser::calculateHtmlLayout(
+    const std::string& html,
+    double width,
+    const std::optional<NativeTextStyle>& baseStyle,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles,
+    std::optional<double> fontScale
+) {
+    return calculateHtmlLayout(
         html,
         static_cast<float>(width),
-        static_cast<float>(baseFontSize),
-        static_cast<float>(baseLineHeight),
-        static_cast<float>(fontScale)
-    ));
+        baseStyle,
+        tagsStyles,
+        static_cast<float>(fontScale.value_or(1.0))
+    );
 }
 
-float HybridFastHtmlParser::calculateHtmlHeight(const std::string& html, float width, float baseFontSize, float baseLineHeight, float fontScale) {
-    if (html.empty()) return 0.0f;
-    auto article = parseInternal(html);
-    return article ? article->estimateHeight(width, baseFontSize, baseLineHeight, fontScale) : 0.0f;
+std::shared_ptr<Promise<HtmlLayoutMeasurement>>
+HybridFastHtmlParser::calculateHtmlLayoutAsync(
+    const std::string& html,
+    double width,
+    const std::optional<NativeTextStyle>& baseStyle,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles,
+    std::optional<double> fontScale
+) {
+    return Promise<HtmlLayoutMeasurement>::async([html, width, baseStyle, tagsStyles, fontScale]() -> HtmlLayoutMeasurement {
+        if (html.empty()) return HtmlLayoutMeasurement(0.0, "");
+        return calculateHtmlLayout(
+            html,
+            static_cast<float>(width),
+            baseStyle,
+            tagsStyles,
+            static_cast<float>(fontScale.value_or(1.0))
+        );
+    });
+}
+
+HtmlLayoutMeasurement HybridFastHtmlParser::calculateHtmlLayout(
+    const std::string& html,
+    float width,
+    const std::optional<NativeTextStyle>& baseStyle,
+    const std::optional<std::unordered_map<std::string, NativeTextStyle>>& tagsStyles,
+    float fontScale
+) {
+    if (html.empty()) return HtmlLayoutMeasurement(0.0, "");
+    std::string astId = generateAstId(html, baseStyle, tagsStyles);
+    auto article = parseInternal(html, baseStyle, tagsStyles);
+    float baseFontSize = 16.0f;
+    float baseLineHeight = 0.0f;
+    if (baseStyle.has_value()) {
+        if (baseStyle->fontSize.has_value() && baseStyle->fontSize.value() > 0) {
+            baseFontSize = static_cast<float>(baseStyle->fontSize.value());
+        }
+        if (baseStyle->lineHeight.has_value() && baseStyle->lineHeight.value() > 0) {
+            baseLineHeight = static_cast<float>(baseStyle->lineHeight.value());
+        }
+    }
+    double h = article ? static_cast<double>(article->estimateHeight(width, baseFontSize, baseLineHeight, fontScale)) : 0.0;
+    return HtmlLayoutMeasurement(h, astId);
 }
 
 // ── parse (sync) ──────────────────────────────────────────────────────────────
 std::variant<std::shared_ptr<HybridParsedArticleSpec>, NullType>
 HybridFastHtmlParser::parse(const std::string& html) {
     if (html.empty()) return nullptr;
-    auto article = parseInternal(html);
-    return article;
+    return parseInternal(html);
 }
 
 // ── parseAsync ────────────────────────────────────────────────────────────────

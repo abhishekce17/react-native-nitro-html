@@ -1,4 +1,5 @@
 import type { HybridObject } from 'react-native-nitro-modules';
+import type { NativeTextStyle } from './NativeHtmlView.nitro';
 
 export interface InlineNode extends HybridObject<{
   ios: 'c++';
@@ -102,6 +103,11 @@ export interface ParsedArticle extends HybridObject<{
   getBlock(index: number): ContentBlock | null;
 }
 
+export interface HtmlLayoutMeasurement {
+  height: number;
+  astId: string;
+}
+
 export interface FastHtmlParser extends HybridObject<{
   ios: 'c++';
   android: 'c++';
@@ -115,12 +121,37 @@ export interface FastHtmlParser extends HybridObject<{
   // Normalizes HTML via compiled C++ Lexbor into clean, standard markup with pre-formatted list bullets & quotes
   normalizeHtml(html: string): string;
 
-  // Calculates estimated HTML height for Fabric Yoga pre-layout
-  calculateHtmlHeight(
+  // Measures layout, computes styles, buffers the AST, and returns measured height and astId
+  calculateHtmlLayout(
     html: string,
     width: number,
-    baseFontSize: number,
-    baseLineHeight: number,
-    fontScale: number
-  ): number;
+    baseStyle?: NativeTextStyle,
+    tagsStyles?: Record<string, NativeTextStyle>,
+    fontScale?: number
+  ): HtmlLayoutMeasurement;
+
+  // Measures layout, computes styles, buffers the AST asynchronously on a background thread and returns Promise<{ height, astId }>
+  calculateHtmlLayoutAsync(
+    html: string,
+    width: number,
+    baseStyle?: NativeTextStyle,
+    tagsStyles?: Record<string, NativeTextStyle>,
+    fontScale?: number
+  ): Promise<HtmlLayoutMeasurement>;
+
+  // Generates deterministic AST cache identifier from HTML and styles
+  getAstId(
+    html: string,
+    baseStyle?: NativeTextStyle,
+    tagsStyles?: Record<string, NativeTextStyle>
+  ): string;
+
+  // Stores a parsed article into C++ memory buffer and returns its astId
+  storeAst(article: ParsedArticle): string;
+
+  // Retrieves a parsed article from C++ memory buffer by astId
+  getAst(astId: string): ParsedArticle | null;
+
+  // Clears all entries from the C++ AST memory buffer
+  clearAstCache(): void;
 }

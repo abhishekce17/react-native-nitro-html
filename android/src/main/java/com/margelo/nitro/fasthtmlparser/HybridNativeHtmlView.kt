@@ -61,23 +61,7 @@ class HybridNativeHtmlView(
         }
     }
 
-    override var html: String? = null
-        set(value) {
-            if (field != value) {
-                field = value
-                setNeedsContentUpdate()
-            }
-        }
-
-    override var baseStyle: NativeTextStyle? = null
-        set(value) {
-            if (field != value) {
-                field = value
-                setNeedsContentUpdate()
-            }
-        }
-
-    override var tagsStyles: Map<String, NativeTextStyle>? = null
+    override var astId: String? = null
         set(value) {
             if (field != value) {
                 field = value
@@ -137,14 +121,16 @@ class HybridNativeHtmlView(
 
     private fun updateContent() {
         cancelPendingDownloads()
-        val rawHtml = html ?: ""
+        val currentAstId = astId ?: ""
         containerLayout.removeAllViews()
-        if (rawHtml.isEmpty()) {
+        if (currentAstId.isEmpty()) {
             onContentSizeChange?.invoke(0.0)
             return
         }
 
-        val blocks = SpannableHtmlEngine.parseJson(rawHtml, baseStyle, tagsStyles)
+        val blocks = SpannableHtmlEngine.parseJson(
+            astId = currentAstId
+        )
         val density = context.resources.displayMetrics.density
 
         var currentTextBlocks = JSONArray()
@@ -158,16 +144,6 @@ class HybridNativeHtmlView(
                         setTextIsSelectable(selectable ?: true)
                         movementMethod = LinkMovementMethod.getInstance()
                         setBackgroundColor(Color.TRANSPARENT)
-                        val ffs = SpannableHtmlEngine.normalizeFontFeatureSettings(baseStyle?.fontFeatureSettings)
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                            fontFeatureSettings = ffs
-                        }
-                        val baseFamily = baseStyle?.fontFamily
-                        val baseWeight = baseStyle?.fontWeight
-                        val baseFontStyle = baseStyle?.fontStyle
-                        if (!baseFamily.isNullOrEmpty() || !baseWeight.isNullOrEmpty() || !baseFontStyle.isNullOrEmpty()) {
-                            typeface = SpannableHtmlEngine.resolveTypeface(context, baseFamily, baseWeight, baseFontStyle)
-                        }
                         ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
                             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
                                 super.onInitializeAccessibilityNodeInfo(host, info)
@@ -243,16 +219,6 @@ class HybridNativeHtmlView(
                                 setPadding(padH, padV, padH, padV)
                                 setTextIsSelectable(selectable ?: true)
                                 movementMethod = LinkMovementMethod.getInstance()
-                                val ffs = SpannableHtmlEngine.normalizeFontFeatureSettings(baseStyle?.fontFeatureSettings)
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                                    fontFeatureSettings = ffs
-                                }
-                                val cellFamily = baseStyle?.fontFamily
-                                val cellWeight = baseStyle?.fontWeight
-                                val cellFontStyle = baseStyle?.fontStyle
-                                if (!cellFamily.isNullOrEmpty() || !cellWeight.isNullOrEmpty() || !cellFontStyle.isNullOrEmpty()) {
-                                    typeface = SpannableHtmlEngine.resolveTypeface(context, cellFamily, cellWeight, cellFontStyle)
-                                }
                             }
                             tableRow.addView(cellTv)
                         }
@@ -399,7 +365,7 @@ class HybridNativeHtmlView(
 
                         val captionTv = TextView(context).apply {
                             text = caption
-                            typeface = SpannableHtmlEngine.resolveTypeface(context, baseStyle?.fontFamily, baseStyle?.fontWeight, "italic")
+                            typeface = SpannableHtmlEngine.resolveTypeface(context, null, null, "italic")
                             setTextColor(captionColorInt)
                             if (captionFontSize > 0f) textSize = captionFontSize
                             setPadding(0, captionPadTop, 0, 0)

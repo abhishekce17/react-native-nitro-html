@@ -1,4 +1,8 @@
 #import "FastHtmlParserBridge.h"
+#include <memory>
+#include <string>
+#include <vector>
+#include <unordered_map>
 #include "HybridFastHtmlParser.hpp"
 #import <UIKit/UIKit.h>
 #import <CoreText/CoreText.h>
@@ -479,27 +483,53 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                                             baseStyle:(nullable NSDictionary<NSString *, id> *)baseStyleDict
                                            tagsStyles:(nullable NSDictionary<NSString *, NSDictionary<NSString *, id> *> *)tagsStylesDict
                                        containerWidth:(CGFloat)containerWidth {
-    if (!html || html.length == 0) {
+    return [self buildAttributedStringFromAstId:nil
+                                   fallbackHtml:html
+                                      baseStyle:baseStyleDict
+                                     tagsStyles:tagsStylesDict
+                                 containerWidth:containerWidth];
+}
+
++ (NSAttributedString *)buildAttributedStringFromAstId:(nullable NSString *)astId
+                                              fallbackHtml:(nullable NSString *)html
+                                                 baseStyle:(nullable NSDictionary<NSString *, id> *)baseStyleDict
+                                                tagsStyles:(nullable NSDictionary<NSString *, NSDictionary<NSString *, id> *> *)tagsStylesDict
+                                            containerWidth:(CGFloat)containerWidth {
+    std::shared_ptr<HybridParsedArticle> article = nullptr;
+    if (astId && astId.length > 0) {
+        std::string astIdStr = [astId UTF8String];
+        article = HybridFastHtmlParser::getAstFromBuffer(astIdStr);
+    }
+
+    if (!article && html && html.length > 0) {
+        std::optional<NativeTextStyle> baseStyle = std::nullopt;
+        if (baseStyleDict) {
+            baseStyle = nativeTextStyleFromDict(baseStyleDict);
+        }
+
+        std::optional<std::unordered_map<std::string, NativeTextStyle>> tagsStyles = std::nullopt;
+        if (tagsStylesDict) {
+            std::unordered_map<std::string, NativeTextStyle> map;
+            for (NSString *key in tagsStylesDict) {
+                NSDictionary *d = tagsStylesDict[key];
+                map[std::string([key UTF8String])] = nativeTextStyleFromDict(d);
+            }
+            tagsStyles = map;
+        }
+
+        std::string htmlStr = [html UTF8String];
+        article = HybridFastHtmlParser::parseInternal(htmlStr, baseStyle, tagsStyles);
+    }
+
+    if (!article || article->blocks_.empty()) {
         return [[NSAttributedString alloc] initWithString:@""];
     }
 
-    std::optional<NativeTextStyle> baseStyle = std::nullopt;
-    if (baseStyleDict) {
-        baseStyle = nativeTextStyleFromDict(baseStyleDict);
-    }
+    return [self buildAttributedStringFromArticle:article containerWidth:containerWidth];
+}
 
-    std::optional<std::unordered_map<std::string, NativeTextStyle>> tagsStyles = std::nullopt;
-    if (tagsStylesDict) {
-        std::unordered_map<std::string, NativeTextStyle> map;
-        for (NSString *key in tagsStylesDict) {
-            NSDictionary *d = tagsStylesDict[key];
-            map[std::string([key UTF8String])] = nativeTextStyleFromDict(d);
-        }
-        tagsStyles = map;
-    }
-
-    std::string htmlStr = [html UTF8String];
-    auto article = HybridFastHtmlParser::parseInternal(htmlStr, baseStyle, tagsStyles);
++ (NSAttributedString *)buildAttributedStringFromArticle:(const std::shared_ptr<HybridParsedArticle>&)article
+                                          containerWidth:(CGFloat)containerWidth {
     if (!article || article->blocks_.empty()) {
         return [[NSAttributedString alloc] initWithString:@""];
     }
