@@ -10,8 +10,7 @@
 - **Style-Aware C++ Layout Engine & Memory Buffer Cache**:
   - `calculateHTMLLayout()` / `calculateHTMLLayoutAsync()` computes exact bounding boxes for Frame 0 before mounting, preventing Cumulative Layout Shift (CLS).
   - Pre-tokenized and pre-styled AST is stored in an $O(1)$ thread-safe LRU memory cache (`sAstBufferMap`, capacity 128) indexed by a deterministic 64-bit FNV-1a hash token (`astId`, e.g., `"ast_6f41b2..."`).
-- **Zero-Copy Native Fabric Rendering**:
-  - Native views (`NativeHtmlView` on iOS & Android) receive the lightweight `astId` token prop, fetching the pre-styled C++ AST directly from memory in $O(1)$ without UI-thread parsing or JSON serialization.
+- **Zero-Copy Native Fabric Rendering**: Zero-copy native rendering from a preprocessed C++ AST/memory buffer, avoiding HTML re-parsing and JS/Fabric document-tree construction:
   - **iOS**: Apple TextKit 2 (`FastHtmlParserBridge.mm`, `NSTextLayoutManager`, `NSTextContentStorage`, `UITextView`).
   - **Android**: Precomputed Android Spannables (`cpp-adapter.cpp`, `SpannableHtmlEngine.kt`, `SpannableStringBuilder`, `MetricAffectingSpan`).
 - **Dual-Path Rendering Engine**:

@@ -8,9 +8,9 @@
 
 An ultra-fast, production-ready HTML Content & Editorial Pipeline for React Native. Engineered specifically for rich editorial apps, blogs, news feeds, documentation readers, and high-throughput content streams where traditional JavaScript-based HTML renderers suffer from thread lockups, frame drops, and bloated Virtual DOM overhead.
 
-Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to the native runtime via zero-copy **Margelo Nitro Modules** (JSI):
+Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to the native runtime via **Margelo Nitro Modules** (JSI):
 
-- **0 React Virtual DOM Allocations**: Renders multi-paragraph articles directly into **Apple TextKit 2** (iOS) and **Precomputed Spannables** (Android) for rock-solid **120 FPS scrolling**.
+- **Zero-Copy Native Rendering**: Renders directly from a preprocessed C++ AST/memory buffer into **Apple TextKit 2** (iOS) and **Precomputed Spannables** (Android), avoiding HTML re-parsing and JS/Fabric document-tree construction for rock-solid **120 FPS scrolling**.
 - **Continuous Multi-Paragraph Text Selection**: Drag native selection handles seamlessly across headings, paragraphs, blockquotes, and lists in a single continuous native gesture.
 - **Custom Component Slot Injection**: Intercept specific blocks (`<video>`, interactive widgets, code snippets) and inject custom React components seamlessly into the native stream while preserving full React state.
 - **Direct JSI AST Architecture**: Lazy native-backed AST access for instant UI rendering with zero-copy JSI host objects and zero React Virtual DOM overhead.
