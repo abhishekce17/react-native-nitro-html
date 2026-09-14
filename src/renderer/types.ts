@@ -2,7 +2,6 @@ import type React from 'react';
 import type { TextStyle, ViewStyle } from 'react-native';
 import type {
   ContentBlock,
-  InlineNode,
   ParsedArticle,
 } from '../FastHtmlParser.nitro';
 import type { NativeTextStyle } from '../NativeHtmlView.nitro';
@@ -13,11 +12,6 @@ export type CustomBlockRenderer = React.ComponentType<{
   block: ContentBlock;
   baseStyle?: TextStyle;
   tagStyle?: TextStyle | ViewStyle;
-}>;
-
-export type CustomInlineRenderer = React.ComponentType<{
-  node: InlineNode;
-  baseStyle?: TextStyle;
 }>;
 
 export interface FastHtmlViewProps {

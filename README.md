@@ -13,7 +13,7 @@ Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to
 - **0 React Virtual DOM Allocations**: Renders multi-paragraph articles directly into **Apple TextKit 2** (iOS) and **Precomputed Spannables** (Android) for rock-solid **120 FPS scrolling**.
 - **Continuous Multi-Paragraph Text Selection**: Drag native selection handles seamlessly across headings, paragraphs, blockquotes, and lists in a single continuous native gesture.
 - **Custom Component Slot Injection**: Intercept specific blocks (`<video>`, interactive widgets, code snippets) and inject custom React components seamlessly into the native stream while preserving full React state.
-- **Dual Pipeline Architecture**: Lazy native-backed AST access for instant UI rendering, plus a **1-Pass Native JSON pipeline** (`parseHTMLToJSON`) for offline caching in MMKV, SQLite, or WatermelonDB.
+- **Direct JSI AST Architecture**: Lazy native-backed AST access for instant UI rendering with zero-copy JSI host objects and zero React Virtual DOM overhead.
 
 ---
 
@@ -44,7 +44,6 @@ Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to
   - [`parseHTMLAsync(html)`](#2-parsehtmlasynchtml)
   - [`normalizeHTML(html)`](#3-normalizehtmlhtml)
   - [`calculateHTMLHeight(html, width, baseFontSize, baseLineHeight, fontScale)`](#4-calculatehtmlheighthtml-width-basefontsize-baselineheight-fontscale)
-  - [`parseHTMLToJSON(html)`](#5-parsehtmltojsonhtml)
 - [🗂️ Zero-Dependency AST Wrappers](#-zero-dependency-ast-wrappers)
   - [`getBlocks(article)`](#getblocksarticle)
   - [`getChildren(node)`](#getchildrennode)
@@ -67,7 +66,7 @@ Powered by the spec-compliant **C++ Lexbor v2.3.0** engine and bound directly to
 - **100% Native Fabric RichText Engine (`<FastHtmlView />`)**: Backed by Apple TextKit 2 on iOS and Precomputed Spannables on Android with **0 React Virtual DOM allocations** for maximum 120 FPS performance.
 - **Continuous Multi-Paragraph Text Selection**: Select and copy text seamlessly across multiple headings, paragraphs, blockquotes, and lists in a single continuous native gesture.
 - **Bug-Free Custom Renderer Injector**: Inject custom React components (`renderers={{ Video: CustomVideo, CodeBlock: CustomCode }}`) seamlessly into the native stream with full React state, hooks, and context lifecycle.
-- **1-Pass Native JSON Pipeline**: Direct `parseHTMLToJSON()` native serialization for SQLite, MMKV, WatermelonDB, and Redux caching.
+- **Zero-Dependency AST Wrappers**: 10 high-speed helper functions (`getBlocks`, `getChildren`, `getItems`, etc.) to traverse and transform native AST structures in JavaScript.
 - **Print-Grade Typography & OpenType**: Native support for `fontFeatureSettings` (tabular numbers `"tnum"`, fractions `"frac"`, small-caps `"smcp"`, slashed zero `"zero"`) and 100–900 numeric font weights.
 - **Horizontal Scroll Native Tables**: Fluid horizontal data tables with zero subview bloat and automatic dynamic color theme resolution.
 
@@ -247,7 +246,7 @@ import { FastHtmlView, type CustomBlockRenderer } from 'react-native-nitro-html'
 // Custom Video Renderer
 const CustomVideoRenderer: CustomBlockRenderer = ({ block }) => (
   <View style={styles.videoCard}>
-    <Text style={styles.videoText}>🎬 Video Player: {block.url}</Text>
+    <Text style={styles.videoText}>🎬 Video Player: {block.src || block.url}</Text>
   </View>
 );
 
@@ -548,16 +547,6 @@ const estimatedHeight: number = calculateHTMLHeight(
   1.0  // Font scale factor
 );
 console.log('Estimated native height:', estimatedHeight);
-```
-
-### 5. `parseHTMLToJSON(html)`
-Parses HTML and directly serializes it to a compact JSON string in a single 1-pass native execution.
-```typescript
-import { parseHTMLToJSON, type ParsedArticleData } from 'react-native-nitro-html';
-
-const jsonStr: string = parseHTMLToJSON('<h1>Title</h1><p>Body</p>');
-const data: ParsedArticleData = JSON.parse(jsonStr);
-console.log('Blocks:', data.blocks.length);
 ```
 
 ---
