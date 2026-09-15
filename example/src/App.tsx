@@ -467,7 +467,12 @@ const CUSTOM_HTML = `
 <p>Standard HTML blocks render 100% natively, while custom renderers intercept specific block types (like interactive CodeBlocks, Video Players, or custom Web Components) without breaking surrounding native layout!</p>
 
 <hr />
-<h2>1. Custom Interactive CodeBlock</h2>
+<h2>1. List Item followed by Custom CodeBlock</h2>
+<ul>
+  <li>Fast C++ AST Parsing with Lexbor</li>
+  <li>100% Native Fabric RichText Rendering</li>
+  <li>Custom React Component Interleaving</li>
+</ul>
 <pre><code class="language-typescript">// TypeScript Native Module Example
 import { NitroModules } from 'react-native-nitro-modules';
 
@@ -492,6 +497,14 @@ const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></
   <p>Universal nested block handling propagates the link URL down to the image and headings!</p>
 </a>
 
+<h1>🖋️ Typography &amp; Font Family Engine</h1>
+<p>Complete real-world React Native font resolution: bundled custom fonts, system generic families, custom font stacks, numeric weights, and OpenType typography features.</p>
+<pre><code class="language-typescript">// TypeScript Native Module Example
+import { NitroModules } from 'react-native-nitro-modules';
+
+export const parser = NitroModules.createHybridObject('FastHtmlParser');
+const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></pre>
+
 <hr />
 `;
 
@@ -500,7 +513,11 @@ const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></
 const TYPOGRAPHY_HTML = `
 <h1>🖋️ Typography &amp; Font Family Engine</h1>
 <p>Complete real-world React Native font resolution: bundled custom fonts, system generic families, custom font stacks, numeric weights, and OpenType typography features.</p>
+<pre><code class="language-typescript">// TypeScript Native Module Example
+import { NitroModules } from 'react-native-nitro-modules';
 
+export const parser = NitroModules.createHybridObject('FastHtmlParser');
+const article = parser.parse('<p>Hello from compiled Lexbor C++!</p>');</code></pre>
 <hr />
 
 <h2>1. ✨ Bundled Custom Fonts (assets/fonts &amp; UIAppFonts)</h2>
@@ -1737,6 +1754,8 @@ function CustomRenderersTab({ theme }: { theme: AppTheme }) {
           tagsStyles={{
             p: { color: theme.textSecondary },
             h2: { color: theme.isDark ? '#38bdf8' : '#0284c7' },
+            ul: { marginBottom: 16 },
+            ol: { marginBottom: 16 },
           }}
           renderers={{
             'CodeBlock': ({ block }: { block: ContentBlock }) => (
@@ -2814,7 +2833,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     borderRadius: 10,
     padding: 14,
-    marginVertical: 10,
+    // marginVertical: 10,
     borderWidth: 1,
     borderColor: '#334155',
   },

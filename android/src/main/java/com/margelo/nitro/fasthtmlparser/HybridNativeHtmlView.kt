@@ -137,6 +137,8 @@ class HybridNativeHtmlView(
 
         fun flushTextBlocks() {
             if (currentTextBlocks.length() > 0) {
+                val lastBlock = currentTextBlocks.optJSONObject(currentTextBlocks.length() - 1)
+                val lastMb = if (lastBlock != null) (lastBlock.optDouble("marginBottom") * density).toInt() else 0
                 val spannable = SpannableHtmlEngine.buildSpannableFromBlocks(context, currentTextBlocks, onLinkPress)
                 if (spannable.isNotEmpty()) {
                     val tv = TextView(context).apply {
@@ -144,6 +146,12 @@ class HybridNativeHtmlView(
                         setTextIsSelectable(selectable ?: true)
                         movementMethod = LinkMovementMethod.getInstance()
                         setBackgroundColor(Color.TRANSPARENT)
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            setMargins(0, 0, 0, lastMb)
+                        }
                         ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
                             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
                                 super.onInitializeAccessibilityNodeInfo(host, info)

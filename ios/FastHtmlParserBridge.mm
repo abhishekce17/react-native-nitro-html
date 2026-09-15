@@ -846,6 +846,13 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
         }
     }
 
+    if (fullText.length > 0 && count > 0) {
+        const auto& lastBlock = article->blocks_.back();
+        if (lastBlock && lastBlock->marginBottom_ > 0) {
+            [fullText addAttribute:@"FastHtmlBottomMargin" value:@(lastBlock->marginBottom_) range:NSMakeRange(0, 1)];
+        }
+    }
+
     return fullText;
 }
 

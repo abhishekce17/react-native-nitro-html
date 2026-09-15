@@ -233,7 +233,15 @@ final class FastHtmlTextView: UITextView {
     }
     cachedTables.removeAll()
 
-    guard attr.length > 0 else { return }
+    guard attr.length > 0 else {
+      self.textContainerInset = .zero
+      return
+    }
+
+    let bmVal = attr.attribute(NSAttributedString.Key("FastHtmlBottomMargin"), at: 0, effectiveRange: nil)
+    let bottomMargin = CGFloat((bmVal as? NSNumber)?.doubleValue ?? 0.0)
+    self.textContainerInset = UIEdgeInsets(top: 0, left: 0, bottom: bottomMargin, right: 0)
+
     let fullRange = NSRange(location: 0, length: attr.length)
 
     // A. Block Backgrounds
