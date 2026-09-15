@@ -622,8 +622,13 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                 if (li < block->items_.size() - 1) {
                     liStyle.paragraphSpacing = 6.0;
                     [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
-                } else if (block->marginBottom_ > 0) {
-                    liStyle.paragraphSpacing = static_cast<CGFloat>(block->marginBottom_);
+                } else {
+                    if (block->marginBottom_ > 0) {
+                        liStyle.paragraphSpacing = static_cast<CGFloat>(block->marginBottom_);
+                    }
+                    if (i < count - 1) {
+                        [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
+                    }
                 }
                 [blockAttr addAttribute:NSParagraphStyleAttributeName value:liStyle range:NSMakeRange(itemStart, blockAttr.length - itemStart)];
             }
@@ -638,7 +643,7 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                                                               range:NSMakeRange(0, blockAttr.length)];
             }
 
-            if (i < count - 1) {
+            if (i < count - 1 && block->type_ != "List") {
                 [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
             }
 

@@ -862,6 +862,20 @@ object SpannableHtmlEngine {
                     } else {
                         fullBuilder.append("\n")
                     }
+                } else {
+                    val marginBottom = blockObj.optDouble("marginBottom")
+                    if (marginBottom > 0) {
+                        val spacerStart = fullBuilder.length
+                        fullBuilder.append("\n")
+                        val spacerEnd = fullBuilder.length
+                        val marginPx = (marginBottom * density).toInt()
+                        fullBuilder.setSpan(
+                            AbsoluteSizeSpan(marginPx, false),
+                            spacerStart,
+                            spacerEnd,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
                 }
             }
         }
