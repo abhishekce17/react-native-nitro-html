@@ -743,19 +743,6 @@ object SpannableHtmlEngine {
                                 itemContentEnd,
                                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                             )
-                            val listMb = blockObj.optDouble("marginBottom", 0.0)
-                            if (listMb > 0) {
-                                val spacerStart = blockBuilder.length
-                                blockBuilder.append("\n\n")
-                                val spacerEnd = blockBuilder.length
-                                val mbPx = (listMb * density).toInt()
-                                blockBuilder.setSpan(
-                                    AbsoluteSizeSpan(mbPx, false),
-                                    spacerStart + 1,
-                                    spacerEnd,
-                                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                                )
-                            }
                         }
                     }
                 }

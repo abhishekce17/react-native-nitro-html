@@ -2475,10 +2475,12 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
     }
     if (type_ == "List") {
         float bulletIndent = effectiveFontSize;
-        float itemSpacing = (mt + mb > 0.0f) ? (mt + mb) : effectiveFontSize;
+        float itemSpacing = 6.0f * (fontScale > 0.0f ? fontScale : 1.0f);
+        float listMargin = (mt + mb > 0.0f) ? (mt + mb) : 12.0f;
         float h = 0.0f;
 
-        for (const auto& item : items_) {
+        for (size_t li = 0; li < items_.size(); ++li) {
+            const auto& item = items_[li];
             float textLen = 0.0f;
             for (const auto& child : item->children_) {
                 textLen += static_cast<float>(child->text_.length());
@@ -2486,13 +2488,14 @@ float HybridContentBlock::estimateHeight(float width, float baseFontSize, float 
             float availableWidth = std::max(1.0f, width - bulletIndent);
             float charsPerLine = std::max(1.0f, availableWidth / std::max(1.0f, proportionalCharWidth));
             float lines = std::max(1.0f, std::ceil(textLen / charsPerLine));
-            h += lines * effectiveLineHeight + itemSpacing;
+            float spacing = (li < items_.size() - 1) ? itemSpacing : 0.0f;
+            h += lines * effectiveLineHeight + spacing;
 
             for (const auto& nested : item->nested_) {
                 h += nested->estimateHeight(availableWidth, baseFontSize, baseLineHeight, fontScale);
             }
         }
-        return h + effectiveFontSize;
+        return h + listMargin;
     }
     if (type_ == "Table") {
         float rowPadding = effectiveFontSize;
