@@ -591,6 +591,8 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
         if (block->type_ == "List") {
             CGFloat listLeftMargin = static_cast<CGFloat>(block->marginLeft_ + block->paddingLeft_);
             CGFloat hangingIndent = block->ordered_ ? 20.0 : 16.0;
+            CGFloat listMt = block->marginTop_ > 0 ? static_cast<CGFloat>(block->marginTop_) : 0.0;
+
             for (size_t li = 0; li < block->items_.size(); ++li) {
                 const auto& item = block->items_[li];
                 if (!item) continue;
@@ -610,9 +612,18 @@ static NSMutableDictionary<NSString *, NSNumber *> *sImageAspectRatios = nil;
                 NSMutableParagraphStyle *liStyle = [[NSMutableParagraphStyle alloc] init];
                 liStyle.firstLineHeadIndent = listLeftMargin;
                 liStyle.headIndent = listLeftMargin + hangingIndent;
+                if (block->lineHeight_ > 0) {
+                    liStyle.minimumLineHeight = static_cast<CGFloat>(block->lineHeight_);
+                    liStyle.maximumLineHeight = static_cast<CGFloat>(block->lineHeight_);
+                }
+                if (li == 0 && listMt > 0) {
+                    liStyle.paragraphSpacingBefore = listMt;
+                }
                 if (li < block->items_.size() - 1) {
                     liStyle.paragraphSpacing = 6.0;
                     [blockAttr appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n"]];
+                } else if (block->marginBottom_ > 0) {
+                    liStyle.paragraphSpacing = static_cast<CGFloat>(block->marginBottom_);
                 }
                 [blockAttr addAttribute:NSParagraphStyleAttributeName value:liStyle range:NSMakeRange(itemStart, blockAttr.length - itemStart)];
             }
