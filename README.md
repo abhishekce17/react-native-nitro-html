@@ -663,15 +663,22 @@ const defs = getDefs(defItems[0]);
 For direct integration with native view hierarchies, use `<NativeHtmlView />`:
 
 ```tsx
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { View, Button } from 'react-native';
 import {
   NativeHtmlView,
+  calculateHTMLLayout,
   type NativeHtmlViewMethods,
 } from 'react-native-nitro-html';
 
 export function ImperativeExample() {
   const ref = useRef<NativeHtmlViewMethods>(null);
+
+  // Pre-calculate layout and buffer the AST to obtain the deterministic astId
+  const { astId } = useMemo(
+    () => calculateHTMLLayout('<h1>Headline</h1><p>Sample paragraph.</p>', 375),
+    []
+  );
 
   const handleReadText = async () => {
     if (ref.current) {
@@ -684,7 +691,7 @@ export function ImperativeExample() {
     <View>
       <NativeHtmlView
         ref={ref}
-        html="<h1>Headline</h1><p>Sample paragraph.</p>"
+        astId={astId}
         selectable={true}
         style={{ flex: 1 }}
       />
